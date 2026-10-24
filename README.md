@@ -1,0 +1,129 @@
+# React Tabulation System
+
+A general, web-based tabulation system for pageants and contests. Judges score candidates from their own PCs over the venue LAN, and the server computes rankings and reports as soon as scores come in.
+
+Nothing is hardcoded to one pageant. Each event sets its own rounds, cut-offs (Top N), candidate groups, criteria, scoring method and deduction rules.
+
+## Features
+
+- **Admin**: manage events, candidates (with pictures), rounds, categories, criteria and judges; bulk import from CSV or Excel; reports by candidate, judge, category and overall.
+- **Judge**: log in with their name and a password set by the Admin, then score candidates by category.
+- **General scoring engine**: average or rank-sum scoring, weights, carry-over between rounds, drop highest and lowest, deductions, tie detection at the cut line. See [docs/scoring.md](docs/scoring.md).
+- **Built for large fields**: server-side pagination, debounced search, WebP thumbnails, lazy-loaded images and memoized score rows keep screens smooth with hundreds of candidates. See [docs/performance.md](docs/performance.md).
+- **Testing mode**: rehearse with fake scores. Judges get `Shift + J` (random scores) and `Shift + P` (perfect scores) shortcuts, and the Admin can reset scores afterwards.
+- **Runs offline**: one server PC runs everything in Docker; client PCs only need a browser.
+
+## Tech stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | React 18, TypeScript, Vite, React Router |
+| Backend | Node.js, Express, TypeScript, Zod |
+| Database | PostgreSQL 16 with Prisma ORM |
+| Images | Multer uploads, Sharp resizing to WebP |
+| Deployment | Docker Compose: nginx (web), Node (api), PostgreSQL (db) |
+
+## Quick start (event server)
+
+Requirements: Docker Desktop (Windows uses WSL2) or Docker Engine on Linux.
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set real values for `POSTGRES_PASSWORD`, `JWT_SECRET` and `ADMIN_PASSWORD`.
+
+```bash
+docker compose up -d --build
+```
+
+Open `http://<server-ip>` from any PC on the same network and log in as the admin from `.env`. Full event-day steps, firewall and backups are in [docs/deployment.md](docs/deployment.md).
+
+## Development (hot reload)
+
+### Option A: Node on your machine
+
+Requirements: Node.js 20 or newer, and a PostgreSQL database (the `db` service from the dev compose file works).
+
+```bash
+npm install
+```
+
+```bash
+docker compose -f docker-compose.dev.yml up -d db
+```
+
+```bash
+cp .env.example .env
+```
+
+Set `DATABASE_URL=postgresql://tabulation:devpassword@localhost:5432/tabulation` and `POSTGRES_PASSWORD=devpassword` in `.env`, then:
+
+```bash
+npm run db:deploy -w apps/api
+```
+
+```bash
+npm run seed -w apps/api
+```
+
+```bash
+npm run dev
+```
+
+The web app runs at http://localhost:5173 with Vite hot module reload, and the API restarts on every save.
+
+### Option B: everything in Docker
+
+```bash
+docker compose -f docker-compose.dev.yml up
+```
+
+Source is mounted into the container and file changes are picked up by polling, so hot reload works on Windows too. Open http://localhost:5173 and log in as `admin` / `admin12345`.
+
+More detail: [docs/development.md](docs/development.md).
+
+## Scripts
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | API and web together with hot reload |
+| `npm run build` | Production build of both apps |
+| `npm test` | Scoring engine unit tests |
+| `npm run typecheck` | TypeScript checks for both apps |
+| `npm run db:migrate -w apps/api` | Create a migration after editing `schema.prisma` |
+| `npm run db:deploy -w apps/api` | Apply migrations |
+| `npm run db:studio -w apps/api` | Browse the database in Prisma Studio |
+
+## Project structure
+
+```text
+apps/
+  api/                 Express + Prisma REST API
+    prisma/            schema.prisma and migrations
+    src/scoring/       pure scoring engine with unit tests
+    src/routes/        auth, events, candidates
+    src/lib/           Prisma client, image processing
+  web/                 React + Vite frontend
+    src/pages/         login, admin screens, judge score sheet
+    src/components/    Pagination, CandidatePhoto
+    src/hooks/         usePaginated, useDebounced, useAutoInputShortcuts
+docs/                  architecture, scoring, performance, deployment, API
+docker-compose.yml     production stack for the event server
+docker-compose.dev.yml development stack with hot reload
+```
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Data model](docs/data-model.md)
+- [Scoring methods](docs/scoring.md)
+- [Performance with many candidates](docs/performance.md)
+- [API reference](docs/api.md)
+- [Deployment and event day](docs/deployment.md)
+- [Development guide](docs/development.md)
+- [Roadmap](docs/roadmap.md)
+
+## Status
+
+Early scaffold. Working today: login, events, candidates with picture upload and pagination, the scoring engine, and a sample judge score sheet. See the [roadmap](docs/roadmap.md) for what comes next.

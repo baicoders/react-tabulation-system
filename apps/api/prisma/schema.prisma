@@ -1,0 +1,280 @@
+// Data model for the general tabulation system.
+// Everything pageant specific (rounds, groups, criteria, deduction rules) is data, not code.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EventStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum RoundKind {
+  SCORED
+  PAIR_VOTE
+}
+
+enum ScoreMethod {
+  AVERAGE
+  RANK_SUM
+}
+
+enum TieBreak {
+  SHARED_RANK
+  CATEGORY_SCORE
+  FIRST_PLACE_COUNT
+  ADMIN_DECIDES
+}
+
+enum RoundStatus {
+  PENDING
+  OPEN
+  CLOSED
+}
+
+enum ScoreStatus {
+  DRAFT
+  SUBMITTED
+}
+
+model AdminUser {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model Event {
+  id             Int             @id @default(autoincrement())
+  name           String
+  date           DateTime?
+  venue          String?
+  status         EventStatus     @default(DRAFT)
+  testingMode    Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  groups         Group[]
+  candidates     Candidate[]
+  rounds         Round[]
+  judges         Judge[]
+  deductionRules DeductionRule[]
+  auditLogs      AuditLog[]
+}
+
+// An admin-defined way to group candidates, e.g. "Type", "House", "Level".
+model Group {
+  id      Int          @id @default(autoincrement())
+  eventId Int
+  name    String
+  event   Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  values  GroupValue[]
+
+  @@unique([eventId, name])
+}
+
+// One option of a group, e.g. "Male", "House Red", "SHS".
+model GroupValue {
+  id         Int                   @id @default(autoincrement())
+  groupId    Int
+  name       String
+  group      Group                 @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  candidates CandidateGroupValue[]
+
+  @@unique([groupId, name])
+}
+
+model Candidate {
+  id           Int                   @id @default(autoincrement())
+  eventId      Int
+  number       Int
+  name         String
+  picturePath  String?
+  event        Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  groupValues  CandidateGroupValue[]
+  roundEntries RoundEntry[]
+  scores       Score[]
+  deductions   Deduction[]
+  pairsAsA     Pair[]                @relation("PairCandidateA")
+  pairsAsB     Pair[]                @relation("PairCandidateB")
+  votesWon     PairVote[]
+
+  @@unique([eventId, number])
+}
+
+model CandidateGroupValue {
+  candidateId  Int
+  groupValueId Int
+  candidate    Candidate  @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  groupValue   GroupValue @relation(fields: [groupValueId], references: [id], onDelete: Cascade)
+
+  @@id([candidateId, groupValueId])
+}
+
+model Round {
+  id              Int          @id @default(autoincrement())
+  eventId         Int
+  order           Int
+  name            String
+  kind            RoundKind    @default(SCORED)
+  scoreMethod     ScoreMethod  @default(AVERAGE)
+  // Top N that advance to the next round. Null means everyone advances or this is the final round.
+  advanceCount    Int?
+  // Share of earlier rounds carried into this round's final score, 0 to 1. Null means start fresh.
+  carryOverWeight Decimal?     @db.Decimal(5, 4)
+  dropExtremes    Boolean      @default(false)
+  tieBreak        TieBreak     @default(SHARED_RANK)
+  status          RoundStatus  @default(PENDING)
+  event           Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  categories      Category[]
+  entries         RoundEntry[]
+  pairs           Pair[]
+  deductions      Deduction[]
+
+  @@unique([eventId, order])
+}
+
+// Which candidates compete in a round, and whether they advanced past it.
+model RoundEntry {
+  roundId     Int
+  candidateId Int
+  advanced    Boolean?
+  round       Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@id([roundId, candidateId])
+}
+
+model Category {
+  id        Int             @id @default(autoincrement())
+  roundId   Int
+  name      String
+  // Percent of the round, 0 to 100. Null means equal weights.
+  weight    Decimal?        @db.Decimal(5, 2)
+  order     Int             @default(0)
+  round     Round           @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  criteria  Criterion[]
+  judges    JudgeCategory[]
+}
+
+model Criterion {
+  id         Int      @id @default(autoincrement())
+  categoryId Int
+  name       String
+  minPoints  Decimal  @db.Decimal(6, 2)
+  maxPoints  Decimal  @db.Decimal(6, 2)
+  // Percent of the category, 0 to 100. Null means equal weights.
+  weight     Decimal? @db.Decimal(5, 2)
+  order      Int      @default(0)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  scores     Score[]
+}
+
+model Judge {
+  id           Int             @id @default(autoincrement())
+  eventId      Int
+  // Login username is the judge's name.
+  name         String
+  passwordHash String
+  event        Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  categories   JudgeCategory[]
+  scores       Score[]
+  votes        PairVote[]
+
+  @@unique([eventId, name])
+}
+
+model JudgeCategory {
+  judgeId    Int
+  categoryId Int
+  judge      Judge    @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([judgeId, categoryId])
+}
+
+model Score {
+  id          Int         @id @default(autoincrement())
+  judgeId     Int
+  candidateId Int
+  criterionId Int
+  points      Decimal     @db.Decimal(6, 2)
+  status      ScoreStatus @default(DRAFT)
+  isTest      Boolean     @default(false)
+  updatedAt   DateTime    @updatedAt
+  judge       Judge       @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  candidate   Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  criterion   Criterion   @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+
+  @@unique([judgeId, candidateId, criterionId])
+  @@index([candidateId])
+  @@index([criterionId])
+}
+
+model Pair {
+  id           Int        @id @default(autoincrement())
+  roundId      Int
+  candidateAId Int
+  candidateBId Int
+  order        Int        @default(0)
+  round        Round      @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  candidateA   Candidate  @relation("PairCandidateA", fields: [candidateAId], references: [id], onDelete: Cascade)
+  candidateB   Candidate  @relation("PairCandidateB", fields: [candidateBId], references: [id], onDelete: Cascade)
+  votes        PairVote[]
+}
+
+model PairVote {
+  id       Int       @id @default(autoincrement())
+  pairId   Int
+  judgeId  Int
+  winnerId Int
+  isTest   Boolean   @default(false)
+  pair     Pair      @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  judge    Judge     @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  winner   Candidate @relation(fields: [winnerId], references: [id], onDelete: Cascade)
+
+  @@unique([pairId, judgeId])
+}
+
+// Admin-defined rule for an event, e.g. "Guideline 7" worth 5 points.
+model DeductionRule {
+  id         Int         @id @default(autoincrement())
+  eventId    Int
+  label      String
+  points     Decimal     @db.Decimal(6, 2)
+  event      Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  deductions Deduction[]
+}
+
+model Deduction {
+  id          Int            @id @default(autoincrement())
+  candidateId Int
+  roundId     Int?
+  ruleId      Int?
+  points      Decimal        @db.Decimal(6, 2)
+  note        String?
+  createdBy   String
+  createdAt   DateTime       @default(now())
+  candidate   Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  round       Round?         @relation(fields: [roundId], references: [id], onDelete: SetNull)
+  rule        DeductionRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  eventId   Int?
+  actor     String
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+}

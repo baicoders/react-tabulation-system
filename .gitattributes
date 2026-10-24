@@ -1,0 +1,5 @@
+# Keep LF in the repo so shell commands and configs work inside Linux containers.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary
