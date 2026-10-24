@@ -51,7 +51,7 @@ export function LoginPage() {
         </label>
         {error && <p className="error">{error}</p>}
         <button type="submit" className="btn primary" style={{ height: 40 }} disabled={busy}>
-          {busy ? 'Logging in...' : 'Log in'}
+          {busy ? 'Logging in…' : 'Log in'}
         </button>
       </form>
     </main>

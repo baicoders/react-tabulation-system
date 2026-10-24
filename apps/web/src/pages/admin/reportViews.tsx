@@ -96,10 +96,10 @@ function Signatures({ names, label }: { names: string[]; label: string }) {
 function Loading({ error, retry }: { error: string | null; retry: () => void }) {
   return error ? (
     <p className="error">
-      Couldn't load this report. <button className="link-btn" onClick={retry}>Retry</button>
+      Couldn’t load this report. <button className="link-btn" onClick={retry}>Retry</button>
     </p>
   ) : (
-    <p className="muted">Loading report...</p>
+    <p className="muted">Loading report…</p>
   );
 }
 
@@ -414,7 +414,7 @@ export function CandidateReport({ event, params, set }: ViewProps) {
         disabled={!d}
       />
       {!chosen ? (
-        <div className="empty no-print">Choose a candidate to see every judge's points in every round they entered.</div>
+        <div className="empty no-print">Choose a candidate to see every judge’s points in every round they entered.</div>
       ) : !d ? (
         <Loading error={data.error} retry={data.reload} />
       ) : (

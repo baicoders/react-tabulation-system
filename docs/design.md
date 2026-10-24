@@ -47,3 +47,13 @@ node <taste-skill>/scripts/inspect.mjs --app http://localhost:5173/login
 ```
 
 The inspector opens pages in a fresh browser, so it can only measure the login page; the admin screens are checked by hand at 1440 and 390 px.
+
+## Hallmark audit (Oct 25, 2026)
+
+A second, independent check with [Hallmark](https://github.com/nutlope/hallmark) in app scope:
+
+```bash
+node <hallmark>/scripts/sloplint.mjs apps/web/src apps/web/index.html --genre modern-minimal --scope app --render --url http://localhost:5173/login
+```
+
+It agreed with the taste-skill rules on almost everything. Fixed from it: text fields now have a 3.2:1 edge (`--field`) so they are easy to find, every colour goes through a token, spacing sits on the 4px scale, headings balance their lines, and text uses true ellipses and apostrophes. Dismissed, with the reason in the stamp at the top of `styles.css`: the muted subtitle under each title (not an accent word) and lazy thumbnails in long lists (on purpose).

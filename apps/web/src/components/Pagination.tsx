@@ -9,12 +9,12 @@ interface Props {
 }
 
 /** Page numbers with the current page in the middle, e.g. 1 ... 4 5 [6] 7 8 ... 20. */
-function pageList(page: number, pages: number): (number | '...')[] {
+function pageList(page: number, pages: number): (number | '…')[] {
   const around = new Set([1, pages, page - 2, page - 1, page, page + 1, page + 2]);
-  const list: (number | '...')[] = [];
+  const list: (number | '…')[] = [];
   let last = 0;
   for (const p of [...around].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b)) {
-    if (p - last > 1) list.push('...');
+    if (p - last > 1) list.push('…');
     list.push(p);
     last = p;
   }
@@ -35,9 +35,9 @@ export function Pagination({ page, pageSize, total, onPageChange, onPageSizeChan
         Prev
       </button>
       {pageList(page, pages).map((p, i) =>
-        p === '...' ? (
+        p === '…' ? (
           <span key={`gap-${i}`} className="muted">
-            ...
+            …
           </span>
         ) : (
           <button key={p} onClick={() => onPageChange(p)} aria-current={p === page ? 'page' : undefined}>

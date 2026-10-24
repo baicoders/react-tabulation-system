@@ -7,7 +7,7 @@ import { useAdmin } from './AdminLayout';
 // Settings two-column layout: each group is a section, its values in the panel beside it.
 export function GroupsPage() {
   const { event, reloadEvent } = useAdmin();
-  if (!event) return <p className="muted">Loading event...</p>;
+  if (!event) return <p className="muted">Loading event…</p>;
 
   return (
     <section>

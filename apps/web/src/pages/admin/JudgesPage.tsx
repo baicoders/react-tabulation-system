@@ -24,7 +24,7 @@ export function JudgesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!event) return <p className="muted">Loading event...</p>;
+  if (!event) return <p className="muted">Loading event…</p>;
 
   // One column per scored category, in round order. Pair-vote rounds have no categories: every judge votes in them.
   const columns: Column[] = (rounds.data ?? []).flatMap((r) =>
@@ -86,7 +86,7 @@ export function JudgesPage() {
           {plural(list.length, 'judge')}, {plural(columns.length, 'scored category', 'scored categories')}
         </span>
         <span className="spacer" />
-        {saving && <span className="meta">Saving...</span>}
+        {saving && <span className="meta">Saving…</span>}
       </div>
       {error && <p className="error">{error}</p>}
       {uncovered.length > 0 && list.length > 0 && (
@@ -171,7 +171,7 @@ export function JudgesPage() {
         {judges.data && list.length === 0 && <div className="empty" style={{ marginTop: 8 }}>No judges yet. Add each judge with a password you give them on the day.</div>}
         {judges.error && (
           <p className="error">
-            Couldn't load judges. <button className="link-btn" onClick={judges.reload}>Retry</button>
+            Couldn’t load judges. <button className="link-btn" onClick={judges.reload}>Retry</button>
           </p>
         )}
       </div>

@@ -144,7 +144,7 @@ export function ImportCandidates({ event, onClose, onImported }: { event: EventD
           Done
         </button>
       </div>
-      {busy && <p className="muted">Working...</p>}
+      {busy && <p className="muted">Working…</p>}
       {error && <p className="error">{error}</p>}
       {done && <p className="muted" role="status">{done}</p>}
 
@@ -314,7 +314,7 @@ function PhotoZip({ event, pictureNames, onUploaded }: { event: EventDetail; pic
             {progress && (
               <span className={progress.failed.length ? 'error' : 'muted'} role="status">
                 {progress.done < progress.total
-                  ? `Uploading ${progress.done} of ${progress.total}...`
+                  ? `Uploading ${progress.done} of ${progress.total}…`
                   : `Uploaded ${progress.total - progress.failed.length} of ${progress.total}.${progress.failed.length ? ` Failed: ${progress.failed.join(', ')}` : ''}`}
               </span>
             )}

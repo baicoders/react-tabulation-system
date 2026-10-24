@@ -10,7 +10,7 @@ export function RoundsPage() {
   const rounds = useResource<Round[]>(event ? `/events/${event.id}/rounds` : null);
   const [adding, setAdding] = useState(false);
 
-  if (!event) return <p className="muted">Loading event...</p>;
+  if (!event) return <p className="muted">Loading event…</p>;
 
   const refresh = () => {
     rounds.reload();
@@ -53,7 +53,7 @@ export function RoundsPage() {
 
       {rounds.error && (
         <p className="error">
-          Couldn't load rounds. <button className="link-btn" onClick={rounds.reload}>Retry</button>
+          Couldn’t load rounds. <button className="link-btn" onClick={rounds.reload}>Retry</button>
         </p>
       )}
       {rounds.data && list.length === 0 && !adding && <div className="empty">No rounds yet. Add the first round, for example the production number.</div>}

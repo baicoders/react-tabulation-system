@@ -35,7 +35,7 @@ export function EventsPage() {
         <div>
           <h1>Events</h1>
           <p className="sub">
-            {events === null ? 'Loading events...' : live ? `${live.name} is live. Judges log in to this event.` : 'No event is live, so judges cannot log in yet.'}
+            {events === null ? 'Loading events…' : live ? `${live.name} is live. Judges log in to this event.` : 'No event is live, so judges cannot log in yet.'}
           </p>
         </div>
         <div className="actions">
@@ -155,7 +155,7 @@ function NewEventForm({ onCancel, onCreated }: { onCancel: () => void; onCreated
       {error && <p className="error" style={{ marginTop: 12 }}>{error}</p>}
       <div className="form-actions">
         <button className="btn primary" type="submit" disabled={busy}>
-          {busy ? 'Creating...' : 'Create event'}
+          {busy ? 'Creating…' : 'Create event'}
         </button>
         <button className="btn" type="button" onClick={onCancel}>
           Cancel

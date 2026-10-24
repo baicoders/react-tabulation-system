@@ -14,7 +14,7 @@ import { ScoreSheetPage } from './pages/judge/ScoreSheetPage';
 
 function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <p className="muted" style={{ padding: 24 }}>Loading...</p>;
+  if (loading) return <p className="muted" style={{ padding: 24 }}>Loading…</p>;
   if (!user || user.role !== role) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }

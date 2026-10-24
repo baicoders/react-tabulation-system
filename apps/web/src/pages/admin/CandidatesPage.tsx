@@ -40,7 +40,7 @@ export function CandidatesPage() {
     groupValueId: groupValueId || undefined,
   });
 
-  if (!event) return <p className="muted">Loading event...</p>;
+  if (!event) return <p className="muted">Loading event…</p>;
 
   async function onUpload(candidateId: number, file: File | undefined) {
     if (!file) return;

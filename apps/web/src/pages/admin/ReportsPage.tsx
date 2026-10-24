@@ -30,7 +30,7 @@ export function ReportsPage() {
       { replace: true },
     );
 
-  if (!event) return <p className="muted">Loading event...</p>;
+  if (!event) return <p className="muted">Loading event…</p>;
 
   return (
     <section className="report">

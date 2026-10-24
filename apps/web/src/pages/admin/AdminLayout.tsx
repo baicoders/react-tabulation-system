@@ -68,7 +68,7 @@ export function AdminLayout() {
           {eventId && (
             <>
               <div className="group-label" title={current?.name}>
-                {current?.name ?? 'Loading event...'}
+                {current?.name ?? 'Loading event…'}
               </div>
               {EVENT_NAV.map((item) => (
                 <NavLink key={item.label} className="nav-item" to={`/admin/events/${eventId}${item.to ? `/${item.to}` : ''}`} end={item.end}>

@@ -169,7 +169,7 @@ export function EventOverviewPage() {
     return () => window.clearInterval(timer);
   }, [open?.round.id, tab.reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!event) return <p className="muted">Loading event...</p>;
+  if (!event) return <p className="muted">Loading event…</p>;
 
   const max = Math.max(1, ...ladder.map((r) => r.field));
   const lastClosed = [...ladder].reverse().find((r) => r.state === 'done');
@@ -488,11 +488,11 @@ export function EventOverviewPage() {
             <div className="panel" style={{ padding: '4px 16px' }}>
               {tab.error && (
                 <p className="error" style={{ padding: '12px 0' }}>
-                  Couldn't load progress. <button className="link-btn" onClick={tab.reload}>Retry</button>
+                  Couldn’t load progress. <button className="link-btn" onClick={tab.reload}>Retry</button>
                 </p>
               )}
               {!open && <p className="muted" style={{ padding: '12px 0' }}>{plural(event._count.judges, 'judge')}. Progress shows here while a round is open.</p>}
-              {open && !t && !tab.error && <p className="muted" style={{ padding: '12px 0' }}>Loading progress...</p>}
+              {open && !t && !tab.error && <p className="muted" style={{ padding: '12px 0' }}>Loading progress…</p>}
               <div className="rows">
                 {scoringJudges.map((j, i) => (
                   <div className="row" key={j.id}>

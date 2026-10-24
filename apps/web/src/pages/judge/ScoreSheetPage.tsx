@@ -260,7 +260,7 @@ export function ScoreSheetPage() {
         <div className="canvas">
           {sheet.error && (
             <p className="error">
-              Couldn't load your score sheet. <button className="link-btn" onClick={sheet.reload}>Retry</button>
+              Couldn’t load your score sheet. <button className="link-btn" onClick={sheet.reload}>Retry</button>
             </p>
           )}
           {sheet.data && categories.length === 0 && !pairRound && (
@@ -292,7 +292,7 @@ export function ScoreSheetPage() {
                 </div>
                 <div className="actions">
                   <span className={save.kind === 'error' ? 'error' : 'meta'} aria-live="polite">
-                    {save.kind === 'saving' && 'Saving...'}
+                    {save.kind === 'saving' && 'Saving…'}
                     {save.kind === 'saved' && `Saved ${timeFmt.format(save.at)}`}
                     {save.kind === 'error' && save.message}
                   </span>
