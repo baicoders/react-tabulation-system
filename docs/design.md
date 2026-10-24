@@ -26,6 +26,7 @@ One tinted L-shaped frame holds the sidebar and the 48px top bar. The work sits 
 | Groups | Does every candidate have a house and a level? |
 | Rounds and criteria | Do the cuts and criteria match the guidelines, with weights at 100%? |
 | Judges | Does every judge have a login, and have they submitted? |
+| Deductions | Who lost points, under which guideline, and before which round closed? |
 | Reports | Who won, and can every number be traced back to a judge? |
 
 ## Rules we keep

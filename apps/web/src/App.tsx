@@ -4,6 +4,7 @@ import { useAuth, type Role } from './auth/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { CandidatesPage } from './pages/admin/CandidatesPage';
+import { DeductionsPage } from './pages/admin/DeductionsPage';
 import { EventOverviewPage } from './pages/admin/EventOverviewPage';
 import { EventsPage } from './pages/admin/EventsPage';
 import { GroupsPage } from './pages/admin/GroupsPage';
@@ -38,6 +39,7 @@ export function App() {
         <Route path="events/:eventId/groups" element={<GroupsPage />} />
         <Route path="events/:eventId/rounds" element={<RoundsPage />} />
         <Route path="events/:eventId/judges" element={<JudgesPage />} />
+        <Route path="events/:eventId/deductions" element={<DeductionsPage />} />
         <Route path="events/:eventId/reports" element={<ReportsPage />} />
       </Route>
       <Route

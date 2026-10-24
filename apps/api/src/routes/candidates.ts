@@ -22,6 +22,7 @@ const listQuery = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   q: z.string().trim().optional(),
   groupValueId: z.coerce.number().int().positive().optional(),
+  roundId: z.coerce.number().int().positive().optional(),
 });
 
 const candidateSelect = {
@@ -42,12 +43,13 @@ candidatesRouter.get('/events/:eventId/candidates', requireRole('admin', 'judge'
   const eventId = id.parse(req.params.eventId);
   if (req.user?.role === 'judge' && req.user.eventId !== eventId) return res.status(403).json({ error: 'Not allowed' });
 
-  const { page, pageSize, q, groupValueId } = listQuery.parse(req.query);
+  const { page, pageSize, q, groupValueId, roundId } = listQuery.parse(req.query);
   const asNumber = q && /^\d+$/.test(q) ? Number(q) : undefined;
   const where: Prisma.CandidateWhereInput = {
     eventId,
     ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, ...(asNumber ? [{ number: asNumber }] : [])] } : {}),
     ...(groupValueId ? { groupValues: { some: { groupValueId } } } : {}),
+    ...(roundId ? { roundEntries: { some: { roundId } } } : {}),
   };
 
   const [total, rows] = await prisma.$transaction([

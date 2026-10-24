@@ -122,6 +122,22 @@ Pair-vote rounds come back in `/judge/sheet` as `pairRounds: [{ id, name, pairs:
 
 Opening, closing, reopening, unlocking and resets are written to the audit log.
 
+## Deductions (admin)
+
+A deduction comes off one candidate's score in one round, after tabulation. Only rounds that are not closed and are scored by average can take one; pair-vote and rank-sum rounds are refused because points do not change them.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/events/:eventId/deduction-rules` | Rules with how often each was used |
+| POST | `/events/:eventId/deduction-rules` | `{ label, points }`, for example `{ "label": "Guideline 7", "points": 5 }` |
+| PATCH | `/deduction-rules/:id` | `{ label?, points? }` |
+| DELETE | `/deduction-rules/:id` | Deductions made under it stay, without the rule's name |
+| GET | `/events/:eventId/deductions` | Newest first, with candidate, round, rule, note, who added it and when |
+| POST | `/events/:eventId/deductions` | `{ candidateId, roundId, ruleId?, points?, note? }`. Points default to the rule's; with no rule, `points` and `note` are required. The candidate must be in the round |
+| DELETE | `/deductions/:id` | `{ reason }` (required). Not allowed once the round is closed |
+
+Adding and removing deductions are written to the audit log. `GET /events/:eventId/candidates` also takes `roundId` to list only that round's candidates.
+
 ## Reports (admin)
 
 Read only. Built from submitted scores and from the results saved when rounds close. `groupValueId` limits a report to one value of a group (one house, one level) and recounts places from 1 inside it.
