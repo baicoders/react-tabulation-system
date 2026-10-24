@@ -123,3 +123,5 @@ Database migrations run automatically when the API container starts.
 | Clients cannot connect | Check the server IP, the firewall rule, and that all PCs are on the same network |
 | API keeps restarting | `docker compose logs api`; usually a wrong value in `.env` |
 | Forgot admin password | Change `ADMIN_USERNAME` to a new name and restart; the seed creates that admin |
+| Photo upload says "over 25 MB" | Use a smaller copy; the server shrinks every photo anyway |
+| Want sample data for a rehearsal | `docker compose exec api node dist/seed-demo.js` adds a demo event with 60 candidates |

@@ -8,9 +8,12 @@ import { requireRole } from '../middleware/auth';
 
 export const candidatesRouter = Router();
 
+export const MAX_PHOTO_MB = 25;
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  // Phone photos run 3 to 15 MB; the server shrinks each one to a small WebP anyway.
+  limits: { fileSize: MAX_PHOTO_MB * 1024 * 1024 },
   fileFilter: (_req, file, cb) => cb(null, /^image\/(jpeg|png|webp)$/.test(file.mimetype)),
 });
 
@@ -103,7 +106,7 @@ candidatesRouter.delete('/candidates/:id', requireRole('admin'), async (req, res
 });
 
 candidatesRouter.post('/candidates/:id/picture', requireRole('admin'), upload.single('picture'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Upload a JPG, PNG or WebP image up to 10 MB' });
+  if (!req.file) return res.status(400).json({ error: `Upload a JPG, PNG or WebP image up to ${MAX_PHOTO_MB} MB` });
   const candidateId = id.parse(req.params.id);
   const existing = await prisma.candidate.findUnique({ where: { id: candidateId }, select: { picturePath: true } });
   if (!existing) return res.status(404).json({ error: 'Candidate not found' });

@@ -37,7 +37,7 @@ Judges log in to the event whose status is `ACTIVE`. The username is the judge's
 | POST | `/events/:eventId/candidates` | Admin | `{ number, name, groupValueIds? }` |
 | PATCH | `/candidates/:id` | Admin | Any field from POST |
 | DELETE | `/candidates/:id` | Admin | Also deletes the picture files |
-| POST | `/candidates/:id/picture` | Admin | `multipart/form-data`, field `picture`, JPG, PNG or WebP up to 10 MB |
+| POST | `/candidates/:id/picture` | Admin | `multipart/form-data`, field `picture`, JPG, PNG or WebP up to 25 MB (larger returns 413) |
 
 List response:
 

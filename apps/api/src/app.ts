@@ -1,10 +1,11 @@
 import 'express-async-errors';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
+import multer from 'multer';
 import { ZodError } from 'zod';
 import { UPLOADS_DIR } from './lib/images';
 import { authRouter } from './routes/auth';
-import { candidatesRouter } from './routes/candidates';
+import { candidatesRouter, MAX_PHOTO_MB } from './routes/candidates';
 import { eventsRouter } from './routes/events';
 import { importRouter } from './routes/import';
 import { judgeRouter } from './routes/judge';
@@ -43,6 +44,11 @@ export function createApp() {
 
   // express-async-errors forwards rejected promises from async handlers to here.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    // Upload problems (a photo over the size limit) are the user's to fix, so they get a plain message, not a 500.
+    if (err instanceof multer.MulterError) {
+      const message = err.code === 'LIMIT_FILE_SIZE' ? `That photo is over ${MAX_PHOTO_MB} MB. Use a smaller copy.` : `Upload failed: ${err.message}`;
+      return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: message });
+    }
     if (err instanceof ZodError) {
       return res.status(400).json({ error: 'Invalid input', issues: err.issues });
     }
