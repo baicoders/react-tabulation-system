@@ -101,6 +101,13 @@ All scoped to the judge's own event and to categories assigned to them, in round
 
 Scores given while testing mode is on are saved with `isTest: true`.
 
+Pair-vote rounds come back in `/judge/sheet` as `pairRounds: [{ id, name, pairs: [{ id, a, b, myVote }], voted, submitted }]`.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| PUT | `/judge/votes` | `{ pairId, winnerId }`; the winner must be one of the pair. `409` after the judge submitted |
+| POST | `/judge/rounds/:roundId/submit-votes` | Locks the judge's votes; `409` while any pair has no vote |
+
 ## Running rounds (admin)
 
 | Method | Path | Notes |
@@ -109,11 +116,12 @@ Scores given while testing mode is on are saved with `isTest: true`.
 | POST | `/rounds/:id/open` | Fills the round (every candidate for the first round, the advanced ones after that) and opens it. One open round at a time |
 | POST | `/rounds/:id/close` | `{ includeTies? }`. Needs every judge submitted. `409` with `tie` when candidates share the rank at the cut line; send `includeTies: true` to send them all on. Saves each entry's score, rank and `advanced`, and fills the next round |
 | POST | `/rounds/:id/reopen` | Clears the results and empties the next round, if it has not started |
-| POST | `/rounds/:id/judges/:judgeId/unlock` | Lets one judge change their submitted scores in the round |
+| POST | `/rounds/:id/pairs` | Pair-vote rounds: `{ method: "RANKED" \| "RANDOM" }`. Ranked pairs 1st with last of the round before (1 v 10, 2 v 9); random is a draw. Needs an even field; can be redone until the first vote |
+| POST | `/rounds/:id/judges/:judgeId/unlock` | Lets one judge change their submitted scores or votes in the round |
 | POST | `/rounds/:id/reset-scores` | `{ testOnly? }` (default true). Not allowed on a closed round |
 
 Opening, closing, reopening, unlocking and resets are written to the audit log.
 
 ## Coming next
 
-Pair-vote rounds, deductions screen, reports and bulk import. See the [roadmap](roadmap.md).
+Deductions screen, reports and bulk import. See the [roadmap](roadmap.md).

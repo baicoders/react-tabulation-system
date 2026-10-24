@@ -29,9 +29,10 @@
 - [x] Open a round, live judge progress and standings (refresh every 5 seconds), close with Top N and tie check, reopen
 - [x] Let a judge change submitted scores; delete test scores
 
+- [x] Pair-vote rounds (Deba Teh): pairs by rank or random draw, judges pick winners and submit, live tally, close sends the pair winners on
+
 ## Next
 
-- [ ] Pair-vote round screen (Deba Teh) with live tally; until then a pair-vote round cannot be closed
 - [ ] Assign judges to some categories only (the API supports it; the screen gives every judge every category)
 - [ ] Bulk import from CSV and Excel with preview, plus pictures from a ZIP matched by file name
 - [ ] Deduction rules and deductions screen

@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { pictureUrls } from './images';
+import { tabulatePairRound, type PairTally } from './tabulate-pairs';
 import {
   applyCarryOver,
   applyDeductions,
@@ -47,6 +48,12 @@ function shares<T extends { weight: unknown }>(items: T[]): number[] {
  * category, then the categories the judge scored weighted the same way.
  */
 export async function tabulateRound(roundId: number) {
+  const { kind } = await prisma.round.findUniqueOrThrow({ where: { id: roundId }, select: { kind: true } });
+  if (kind === 'PAIR_VOTE') return tabulatePairRound(roundId);
+  return tabulateScoredRound(roundId);
+}
+
+async function tabulateScoredRound(roundId: number) {
   const round = await prisma.round.findUniqueOrThrow({
     where: { id: roundId },
     include: {
@@ -168,5 +175,8 @@ export async function tabulateRound(roundId: number) {
     direction,
     advancingIds: cut.advancing.map((r) => r.candidateId),
     tieAtCutLine: cut.tieAtCutLine.map((r) => r.candidateId),
+    pairs: [] as PairTally[],
+    pairTies: [] as number[],
+    unpaired: 0,
   };
 }

@@ -8,6 +8,7 @@ import { useAutoInputShortcuts } from '../../hooks/useAutoInputShortcuts';
 import { useDebounced } from '../../hooks/useDebounced';
 import { usePaginated } from '../../hooks/usePaginated';
 import { useResource } from '../../hooks/useResource';
+import { PairVotePanel, type PairRound } from './PairVotePanel';
 
 interface Criterion {
   id: number;
@@ -30,6 +31,7 @@ interface Sheet {
   event: { id: number; name: string; testingMode: boolean };
   judge: { id: number; name: string };
   rounds: { id: number; name: string; entries: number; categories: SheetCategory[] }[];
+  pairRounds: PairRound[];
 }
 
 interface Row {
@@ -121,6 +123,8 @@ export function ScoreSheetPage() {
 
   const categories = useMemo(() => (sheet.data?.rounds ?? []).flatMap((r) => r.categories.map((c) => ({ ...c, roundName: r.name }))), [sheet.data]);
   const category = categories.find((c) => c.id === categoryId) ?? null;
+  // Only one round is open at a time; a pair-vote round shows the pair picker instead of the score table.
+  const pairRound = sheet.data?.pairRounds[0] ?? null;
 
   // Start on the first category that still needs scores; move on when the open round changes.
   useEffect(() => {
@@ -258,7 +262,7 @@ export function ScoreSheetPage() {
               Couldn't load your score sheet. <button className="link-btn" onClick={sheet.reload}>Retry</button>
             </p>
           )}
-          {sheet.data && categories.length === 0 && (
+          {sheet.data && categories.length === 0 && !pairRound && (
             <div className="title-row">
               <div>
                 <h1>No round is open</h1>
@@ -272,7 +276,9 @@ export function ScoreSheetPage() {
             </div>
           )}
 
-          {category && (
+          {pairRound && <PairVotePanel round={pairRound} onChange={sheet.reload} />}
+
+          {!pairRound && category && (
             <>
               <div className="title-row">
                 <div>

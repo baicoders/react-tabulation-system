@@ -44,6 +44,14 @@ Each judge's totals are turned into ranks (1 = best). Tied totals share the aver
 
 This exact example is a unit test, so the engine is checked against it on every run.
 
+## Pair vote
+
+For head-to-head rounds such as Deba Teh. The tabulator sets the pairs, by rank (the best of the round before meets the lowest: 1 v 10, 2 v 9) or by a random draw. Every judge picks one winner per pair and submits.
+
+- A pair is decided once every judge has submitted; its winner has the most votes. A tied pair (possible with an even number of judges) blocks closing until a judge changes a vote.
+- The field is ranked pair winners first, then by votes received, then by rank in the round before. With N pairs and Top N, the pair winners are exactly who go on.
+- The tabulator sees every vote as it is cast (a split bar per pair); only submitted votes decide.
+
 ## Carry-over
 
 ```text

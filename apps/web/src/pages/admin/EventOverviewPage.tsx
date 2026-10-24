@@ -27,6 +27,115 @@ interface Tabulation {
   direction: 'asc' | 'desc';
   advancingIds: number[];
   tieAtCutLine: number[];
+  pairs: PairTally[];
+  pairTies: number[];
+  unpaired: number;
+}
+
+interface PairSide {
+  id: number;
+  number: number;
+  name: string;
+  thumbUrl: string | null;
+}
+
+interface PairTally {
+  id: number;
+  a: PairSide;
+  b: PairSide;
+  castA: number;
+  castB: number;
+  votesA: number;
+  votesB: number;
+  winnerId: number | null;
+  tied: boolean;
+}
+
+/** Pairs for a pair-vote round, and the live tally of judges' votes once they are set. */
+function PairsPanel({
+  roundName,
+  tab,
+  judges,
+  busy,
+  onSetPairs,
+}: {
+  roundName: string;
+  tab: Tabulation;
+  judges: number;
+  busy: boolean;
+  onSetPairs: (method: 'RANKED' | 'RANDOM') => void;
+}) {
+  const votesCast = tab.pairs.reduce((sum, p) => sum + p.castA + p.castB, 0);
+  const side = (c: PairSide, won: boolean, right: boolean) => (
+    <span className={right ? 'side right' : 'side'}>
+      {!right && <CandidatePhoto src={c.thumbUrl} name={c.name} size={32} />}
+      <span>
+        <span className={won ? 'won' : undefined}>{c.name}</span>
+        <span className="meta" style={{ display: 'block' }}>
+          No. {c.number}
+          {won ? ', wins' : ''}
+        </span>
+      </span>
+      {right && <CandidatePhoto src={c.thumbUrl} name={c.name} size={32} />}
+    </span>
+  );
+
+  return (
+    <div className="panel">
+      <header>
+        <div>
+          <h2>{tab.pairs.length ? `Votes in ${roundName}` : `Pairs for ${roundName}`}</h2>
+          <p className="muted" style={{ marginTop: 4 }}>
+            {tab.pairs.length === 0
+              ? `${plural(tab.entries, 'candidate')} make ${tab.entries / 2} pairs. Judges see them as soon as they are set.`
+              : `${plural(votesCast, 'vote')} cast of ${tab.pairs.length * judges}. A pair's winner has the most submitted votes.`}
+          </p>
+        </div>
+        {tab.pairs.length > 0 && votesCast === 0 && (
+          <button className="link-btn" disabled={busy} onClick={() => onSetPairs('RANDOM')}>
+            Draw again
+          </button>
+        )}
+      </header>
+
+      {tab.pairs.length === 0 ? (
+        <div className="form-actions" style={{ marginTop: 0 }}>
+          <button className="btn primary" disabled={busy || tab.entries % 2 !== 0} onClick={() => onSetPairs('RANKED')}>
+            Pair by rank
+          </button>
+          <button className="btn" disabled={busy || tab.entries % 2 !== 0} onClick={() => onSetPairs('RANDOM')}>
+            Draw pairs at random
+          </button>
+          <span className="muted">By rank puts the best of the round before against the lowest.</span>
+        </div>
+      ) : (
+        <ol className="tally">
+          {tab.pairs.map((p) => {
+            const total = Math.max(1, judges);
+            const lead = p.castA === p.castB ? null : p.castA > p.castB ? 'a' : 'b';
+            return (
+              <li key={p.id} className="tally-row">
+                {side(p.a, p.winnerId === p.a.id, false)}
+                <span className="bar">
+                  <span className="split" aria-hidden="true">
+                    <span className={lead === 'a' ? 'lead' : undefined} style={{ width: `${(p.castA / total) * 100}%` }} />
+                    <span style={{ flex: 1, background: 'var(--rule)' }} />
+                    <span className={lead === 'b' ? 'lead' : undefined} style={{ width: `${(p.castB / total) * 100}%` }} />
+                  </span>
+                  <span className="tally-count">
+                    <span>{p.castA}</span>
+                    {p.tied ? <span className="error">Tied</span> : <span />}
+                    <span>{p.castB}</span>
+                  </span>
+                </span>
+                {side(p.b, p.winnerId === p.b.id, true)}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </div>
+  );
 }
 
 /** Each round's field: its real entries once filled, otherwise the Top N the previous round sends on. */
@@ -65,7 +174,8 @@ export function EventOverviewPage() {
   const lastClosed = [...ladder].reverse().find((r) => r.state === 'done');
   const nextToOpen = !open ? ladder.find((r, i) => r.state !== 'done' && (i === 0 || ladder[i - 1].state === 'done')) : undefined;
   const t = tab.data && open && tab.data.round.id === open.round.id ? tab.data : null;
-  const scoringJudges = t?.judges.filter((j) => j.required > 0) ?? [];
+  // In a pair-vote round every judge votes; in a scored round, the judges assigned to its categories.
+  const scoringJudges = t ? (t.round.kind === 'PAIR_VOTE' ? t.judges : t.judges.filter((j) => j.required > 0)) : [];
   const doneJudges = scoringJudges.filter((j) => j.done).length;
   const groupSummary = event.groups.map((g) => plural(g.values.length, g.name.toLowerCase())).join(', ');
 
@@ -120,7 +230,9 @@ export function EventOverviewPage() {
   // The finding under the ladder's title: what the tabulator needs to know right now.
   const finding = open
     ? t
-      ? t.complete
+      ? open.round.kind === 'PAIR_VOTE' && t.pairs.length === 0
+        ? `${open.round.name} is open with ${plural(open.field, 'candidate')}. Set the pairs so judges can vote.`
+        : t.complete
         ? `All ${scoringJudges.length} judges have submitted ${open.round.name}. Ready to close.`
         : `${open.round.name} is open with ${plural(open.field, 'candidate')}. ${doneJudges} of ${scoringJudges.length} judges have submitted.`
       : `${open.round.name} is open.`
@@ -233,15 +345,19 @@ export function EventOverviewPage() {
             <div className="form-actions" style={{ alignItems: 'center' }}>
               {open && (
                 <>
-                  <button className="btn primary" disabled={busy || !t?.complete || open.round.kind === 'PAIR_VOTE'} onClick={() => closeRound(false)}>
+                  <button className="btn primary" disabled={busy || !t?.complete} onClick={() => closeRound(false)}>
                     Close {open.round.name}
                   </button>
                   <span className="muted">
-                    {open.round.kind === 'PAIR_VOTE'
-                      ? 'Pair-vote rounds cannot be closed here yet.'
-                      : t?.complete
-                        ? `Ranks the field and sends the Top ${cut ?? open.field} on.`
-                        : 'Available once every judge has submitted.'}
+                    {t?.complete
+                      ? open.round.kind === 'PAIR_VOTE'
+                        ? `Sends the ${cut ?? open.field} pair winners on.`
+                        : `Ranks the field and sends the Top ${cut ?? open.field} on.`
+                      : open.round.kind === 'PAIR_VOTE' && t && t.pairs.length === 0
+                        ? 'Set the pairs first.'
+                        : t && t.pairTies.length > 0
+                          ? 'A pair is tied on votes; a judge needs to change a vote.'
+                          : 'Available once every judge has submitted.'}
                   </span>
                 </>
               )}
@@ -273,7 +389,22 @@ export function EventOverviewPage() {
             )}
           </div>
 
-          {open && t && (
+          {open && t && open.round.kind === 'PAIR_VOTE' && (
+            <PairsPanel
+              roundName={open.round.name}
+              tab={t}
+              judges={scoringJudges.length}
+              busy={busy}
+              onSetPairs={(method) =>
+                run(
+                  () => api(`/rounds/${open.round.id}/pairs`, { method: 'POST', body: JSON.stringify({ method }) }),
+                  method === 'RANDOM' ? 'Pairs drawn at random.' : 'Pairs set by rank: the best of the round before meets the lowest.',
+                )
+              }
+            />
+          )}
+
+          {open && t && open.round.kind === 'SCORED' && (
             <div className="panel">
               <header>
                 <div>

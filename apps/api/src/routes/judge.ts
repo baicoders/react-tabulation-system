@@ -76,9 +76,82 @@ judgeRouter.get('/judge/sheet', async (req, res) => {
         submitted,
       });
     }
-    result.push({ id: r.id, name: r.name, entries: r._count.entries, categories });
+    result.push({ id: r.id, name: r.name, kind: 'SCORED' as const, entries: r._count.entries, categories });
   }
-  res.json({ event, judge: { id: judgeId, name: req.user!.name }, rounds: result });
+
+  // Pair-vote rounds: every judge in the event picks one winner per pair.
+  const pairRounds = await prisma.round.findMany({
+    where: { eventId: event.id, status: 'OPEN', kind: 'PAIR_VOTE' },
+    orderBy: { order: 'asc' },
+    include: {
+      _count: { select: { entries: true } },
+      pairs: {
+        orderBy: { order: 'asc' },
+        include: {
+          candidateA: { select: { id: true, number: true, name: true, picturePath: true } },
+          candidateB: { select: { id: true, number: true, name: true, picturePath: true } },
+          votes: { where: { judgeId }, select: { winnerId: true, status: true } },
+        },
+      },
+    },
+  });
+  const pairRoundsOut = pairRounds.map((r) => {
+    const toCandidate = (c: { id: number; number: number; name: string; picturePath: string | null }) => ({
+      id: c.id,
+      number: c.number,
+      name: c.name,
+      thumbUrl: pictureUrls(c.picturePath).thumbUrl,
+    });
+    const pairs = r.pairs.map((p) => ({ id: p.id, a: toCandidate(p.candidateA), b: toCandidate(p.candidateB), myVote: p.votes[0]?.winnerId ?? null }));
+    const voted = pairs.filter((p) => p.myVote !== null).length;
+    const submitted = r.pairs.length > 0 && r.pairs.every((p) => p.votes[0]?.status === 'SUBMITTED');
+    return { id: r.id, name: r.name, kind: 'PAIR_VOTE' as const, entries: r._count.entries, pairs, voted, submitted };
+  });
+
+  res.json({ event, judge: { id: judgeId, name: req.user!.name }, rounds: result, pairRounds: pairRoundsOut });
+});
+
+/** The pair-vote round, checked: open, in the judge's event. */
+async function pairRoundForJudge(eventId: number, roundId: number) {
+  const round = await prisma.round.findUnique({ where: { id: roundId }, include: { event: { select: { testingMode: true } }, pairs: true } });
+  if (!round || round.eventId !== eventId || round.kind !== 'PAIR_VOTE') throw new HttpError(404, 'This round is not a pair vote in your event');
+  if (round.status !== 'OPEN') throw new HttpError(409, `${round.name} is not open for voting`);
+  return round;
+}
+
+judgeRouter.put('/judge/votes', async (req, res) => {
+  try {
+    const judgeId = req.user!.id;
+    const body = z.object({ pairId: z.number().int().positive(), winnerId: z.number().int().positive() }).parse(req.body);
+    const pair = await prisma.pair.findUnique({ where: { id: body.pairId } });
+    if (!pair) throw new HttpError(404, 'Pair not found');
+    const round = await pairRoundForJudge(req.user!.eventId!, pair.roundId);
+    if (body.winnerId !== pair.candidateAId && body.winnerId !== pair.candidateBId) throw new HttpError(400, 'Pick one of the two candidates in this pair');
+    const locked = await prisma.pairVote.count({ where: { judgeId, status: 'SUBMITTED', pair: { roundId: round.id } } });
+    if (locked > 0) throw new HttpError(409, 'You already submitted your votes. Ask the tabulator to let you change them.');
+    await prisma.pairVote.upsert({
+      where: { pairId_judgeId: { pairId: pair.id, judgeId } },
+      create: { pairId: pair.id, judgeId, winnerId: body.winnerId, isTest: round.event.testingMode },
+      update: { winnerId: body.winnerId, isTest: round.event.testingMode },
+    });
+    res.json({ saved: true, savedAt: new Date().toISOString() });
+  } catch (err) {
+    send(res, err);
+  }
+});
+
+judgeRouter.post('/judge/rounds/:roundId/submit-votes', async (req, res) => {
+  try {
+    const judgeId = req.user!.id;
+    const round = await pairRoundForJudge(req.user!.eventId!, id.parse(req.params.roundId));
+    const voted = await prisma.pairVote.count({ where: { judgeId, pair: { roundId: round.id } } });
+    if (round.pairs.length === 0) throw new HttpError(409, 'The pairs are not set yet');
+    if (voted < round.pairs.length) throw new HttpError(409, `${round.pairs.length - voted} pairs still need your vote`);
+    await prisma.pairVote.updateMany({ where: { judgeId, pair: { roundId: round.id } }, data: { status: 'SUBMITTED' } });
+    res.json({ submitted: voted });
+  } catch (err) {
+    send(res, err);
+  }
 });
 
 const listQuery = z.object({

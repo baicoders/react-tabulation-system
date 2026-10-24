@@ -278,3 +278,32 @@ th .sub { display: block; font-size: 11px; color: var(--faint); }
 
 /* The round that is ready to open next: pale teal, so the next step stands out from the closed rounds. */
 .rung[data-state='ready'] .rung-bar, .swatch.ready { background: var(--accent-pale); border: 1px solid var(--accent); }
+
+/* ---------- pair votes: one row per pair, the judge's pick takes the accent ---------- */
+.pairs { display: grid; gap: 12px; max-width: 960px; }
+.pair { display: grid; grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: center; }
+.pair-label { color: var(--muted); font-variant-numeric: tabular-nums; }
+.pick { display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); text-align: left; cursor: pointer; transition: border-color var(--t-hover) ease, background-color var(--t-hover) ease; }
+.pick:hover:not(:disabled) { border-color: var(--control); }
+.pick[aria-pressed='true'] { border: 2px solid var(--accent); padding: 11px 15px; background: var(--accent-pale); }
+.pick:disabled { cursor: default; }
+.pick-text { flex: 1; min-width: 0; display: grid; }
+.pick-text .sub { font-size: var(--fs-small); color: var(--muted); }
+.pick-mark { color: var(--muted); font-size: var(--fs-small); }
+.pick[aria-pressed='true'] .pick-mark { color: var(--accent); font-weight: 600; }
+
+/* the tabulator's live tally: a split bar per pair, the leader's side in the accent */
+.tally { display: grid; gap: 14px; }
+.tally-row { display: grid; grid-template-columns: minmax(0, 1fr) 160px minmax(0, 1fr); gap: 12px; align-items: center; }
+.tally-row .side { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tally-row .side.right { justify-content: flex-end; text-align: right; }
+.tally-row .side .won { font-weight: 600; }
+.split { display: flex; height: 8px; gap: 2px; }
+.split > span { border-radius: 2px; background: var(--active); }
+.split > span.lead { background: var(--accent); }
+.tally-count { display: flex; justify-content: space-between; font-size: var(--fs-small); color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 4px; }
+@media (max-width: 860px) {
+  .pair { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .tally-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .tally-row .bar { grid-column: 1 / -1; grid-row: 2; }
+}

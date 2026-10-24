@@ -156,15 +156,15 @@ model RoundEntry {
 }
 
 model Category {
-  id        Int             @id @default(autoincrement())
-  roundId   Int
-  name      String
+  id       Int             @id @default(autoincrement())
+  roundId  Int
+  name     String
   // Percent of the round, 0 to 100. Null means equal weights.
-  weight    Decimal?        @db.Decimal(5, 2)
-  order     Int             @default(0)
-  round     Round           @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  criteria  Criterion[]
-  judges    JudgeCategory[]
+  weight   Decimal?        @db.Decimal(5, 2)
+  order    Int             @default(0)
+  round    Round           @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  criteria Criterion[]
+  judges   JudgeCategory[]
 }
 
 model Criterion {
@@ -234,14 +234,16 @@ model Pair {
 }
 
 model PairVote {
-  id       Int       @id @default(autoincrement())
+  id       Int         @id @default(autoincrement())
   pairId   Int
   judgeId  Int
   winnerId Int
-  isTest   Boolean   @default(false)
-  pair     Pair      @relation(fields: [pairId], references: [id], onDelete: Cascade)
-  judge    Judge     @relation(fields: [judgeId], references: [id], onDelete: Cascade)
-  winner   Candidate @relation(fields: [winnerId], references: [id], onDelete: Cascade)
+  // Votes lock together when the judge submits the round, like scores.
+  status   ScoreStatus @default(DRAFT)
+  isTest   Boolean     @default(false)
+  pair     Pair        @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  judge    Judge       @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  winner   Candidate   @relation(fields: [winnerId], references: [id], onDelete: Cascade)
 
   @@unique([pairId, judgeId])
 }
