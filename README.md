@@ -143,4 +143,4 @@ All names, houses, criteria and weights in it are sample data.
 
 ## Status
 
-Working today: login; the admin screens for events, the event overview with its cut ladder, candidates (photos, groups, pagination), groups, rounds and criteria, and judges; judges scoring with auto-save and submit; pair-vote rounds such as Deba Teh; and opening, watching and closing rounds so the Top N move on. Deductions and reports come next. See the [roadmap](docs/roadmap.md) and the [design notes](docs/design.md).
+Working today: login; the admin screens for events, the event overview with its cut ladder, candidates (photos, groups, pagination), groups, rounds and criteria, and judges; judges scoring with auto-save and submit; pair-vote rounds such as Deba Teh; and opening, watching and closing rounds so the Top N move on. Reports cover the overall ranking with titles, each round, each candidate and each judge, split by any group, printable and exportable to Excel. Deductions and bulk import come next. See the [roadmap](docs/roadmap.md) and the [design notes](docs/design.md).

@@ -31,12 +31,18 @@
 
 - [x] Pair-vote rounds (Deba Teh): pairs by rank or random draw, judges pick winners and submit, live tally, close sends the pair winners on
 
+## Done (reports)
+
+- [x] Overall ranking with Champion and 1st to 3rd Runner-up, provisional until the final round closes
+- [x] By round (category breakdown, deductions, who went on), by candidate (every judge's points) and by judge (check sheet)
+- [x] Split any ranking by group value (a champion per house, level or type)
+- [x] Print layout with signature lines, and Excel export
+
 ## Next
 
 - [ ] Assign judges to some categories only (the API supports it; the screen gives every judge every category)
 - [ ] Bulk import from CSV and Excel with preview, plus pictures from a ZIP matched by file name
 - [ ] Deduction rules and deductions screen
-- [ ] Reports: by candidate, judge, category and overall, split by any group; PDF and Excel export
 - [ ] Testing mode banner and score reset (all, by category, by judge, test only) with audit log
 - [ ] Live report refresh while judges submit
 - [ ] One-click backup from the Admin screen

@@ -1,33 +1,58 @@
+import { useSearchParams } from 'react-router-dom';
 import { useAdmin } from './AdminLayout';
+import { CandidateReport, JudgeReport, OverallReport, RoundReport } from './reportViews';
 
-const REPORTS = [
-  ['Overall ranking', 'Champion and runners-up, with raw score, deductions and final score side by side.'],
-  ['By category', 'Each candidate\'s score and rank in one category.'],
-  ['By candidate', 'One candidate\'s points per criterion, per judge.'],
-  ['By judge', 'Every score one judge gave, with when it was submitted.'],
-];
+const VIEWS = [
+  { key: 'overall', label: 'Overall ranking' },
+  { key: 'round', label: 'By round' },
+  { key: 'candidate', label: 'By candidate' },
+  { key: 'judge', label: 'By judge' },
+] as const;
+
+type View = (typeof VIEWS)[number]['key'];
 
 export function ReportsPage() {
   const { event } = useAdmin();
+  const [params, setParams] = useSearchParams();
+  const view = (VIEWS.find((v) => v.key === params.get('view'))?.key ?? 'overall') as View;
+
+  // Filters live in the URL, so a report can be reloaded or shared as it is.
+  const set = (changes: Record<string, string | null>) =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        for (const [k, v] of Object.entries(changes)) {
+          if (v === null || v === '') next.delete(k);
+          else next.set(k, v);
+        }
+        return next;
+      },
+      { replace: true },
+    );
+
+  if (!event) return <p className="muted">Loading event...</p>;
+
   return (
-    <section>
-      <div className="title-row">
+    <section className="report">
+      <div className="title-row no-print">
         <div>
           <h1>Reports</h1>
-          <p className="sub">Reports fill in as judges submit scores{event ? ` for ${event.name}` : ''}. Each can be split by any group.</p>
+          <p className="sub">From submitted scores only{event.testingMode ? ', including test scores while testing mode is on' : ''}. Print or download any report.</p>
         </div>
       </div>
-      <div className="rows" style={{ maxWidth: 760 }}>
-        {REPORTS.map(([name, about]) => (
-          <div className="row" key={name}>
-            <span className="grow">
-              <span style={{ fontWeight: 500 }}>{name}</span>
-              <span className="muted" style={{ display: 'block' }}>{about}</span>
-            </span>
-            <span className="pill">No scores yet</span>
-          </div>
+
+      <div className="tabs no-print" role="tablist">
+        {VIEWS.map((v) => (
+          <button key={v.key} role="tab" aria-selected={view === v.key} onClick={() => set({ view: v.key })}>
+            {v.label}
+          </button>
         ))}
       </div>
+
+      {view === 'overall' && <OverallReport event={event} params={params} set={set} />}
+      {view === 'round' && <RoundReport event={event} params={params} set={set} />}
+      {view === 'candidate' && <CandidateReport event={event} params={params} set={set} />}
+      {view === 'judge' && <JudgeReport event={event} params={params} set={set} />}
     </section>
   );
 }

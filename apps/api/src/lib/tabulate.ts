@@ -36,7 +36,7 @@ export interface StandingRow {
 }
 
 /** Share of a criterion inside its category, in percent: its weight, or an equal split when no weights are set. */
-function shares<T extends { weight: unknown }>(items: T[]): number[] {
+export function shares<T extends { weight: unknown }>(items: T[]): number[] {
   const weights = items.map((i) => (i.weight === null ? null : Number(i.weight)));
   if (weights.every((w) => w === null)) return items.map(() => 100 / Math.max(1, items.length));
   return weights.map((w) => w ?? 0);

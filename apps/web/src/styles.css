@@ -307,3 +307,39 @@ th .sub { display: block; font-size: 11px; color: var(--faint); }
   .tally-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .tally-row .bar { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* ---------- reports ---------- */
+.report-head { margin: 8px 0 16px; }
+.report-title { font-size: 18px; line-height: 24px; font-weight: 600; }
+.report-head .muted { margin-top: 4px; }
+.report-block .section-title { margin-bottom: 8px; }
+.title-tag { display: inline-block; margin-left: 8px; font-size: var(--fs-small); font-weight: 600; color: var(--accent); }
+tr.titled td { background: var(--raised); }
+.print-only { display: none; }
+.signatures { margin-top: 48px; }
+.signature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px 32px; margin-top: 32px; }
+.signature { display: grid; gap: 6px; text-align: center; }
+.signature-line { border-bottom: 1px solid var(--text); height: 28px; }
+
+/* Paper: the frame, navigation and controls drop away; the report fills the page in black on white. */
+@media print {
+  @page { margin: 14mm; }
+  body { background: #fff; font-size: 11px; }
+  .sidebar, .topbar, .no-print, .menu-toggle { display: none !important; }
+  .app { display: block; }
+  .sheet { margin: 0; border: 0; border-radius: 0; }
+  .canvas { padding: 0; }
+  .print-only { display: block; }
+  .report-event { font-weight: 600; font-size: 13px; }
+  .report-title { font-size: 16px; }
+  table { font-size: 11px; }
+  td, th { padding: 5px 6px; }
+  tr { break-inside: avoid; }
+  .photo { display: none; }
+  .identity { gap: 0; }
+  tr.titled td { background: none; font-weight: 600; }
+  .title-tag { color: #000; }
+  .pill { background: none; padding: 0; }
+  .report-block { break-inside: avoid-page; }
+  .signatures { break-inside: avoid; }
+}
