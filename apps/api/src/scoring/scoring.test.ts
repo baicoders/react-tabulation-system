@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyCarryOver,
-  applyDeductions,
   assignRanks,
   averageScores,
   rankSum,
@@ -56,11 +55,6 @@ test('average: dropExtremes removes highest and lowest with 5+ judges', () => {
 test('carry-over blends earlier and current scores', () => {
   const result = applyCarryOver([{ candidateId: 1, score: 90 }], [{ candidateId: 1, score: 80 }], 0.3);
   assert.equal(result[0].score, 87);
-});
-
-test('deductions subtract after tabulation', () => {
-  const result = applyDeductions([{ candidateId: 1, score: 88 }], new Map([[1, 5]]));
-  assert.equal(result[0].score, 83);
 });
 
 test('assignRanks shares ranks on ties and skips the next', () => {

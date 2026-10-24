@@ -205,7 +205,6 @@ interface RoundData {
     candidate: ReportCandidate;
     categories: Record<number, number | null>;
     score: number | null;
-    deduction: number;
     rank: number | null;
     position: number | null;
     advanced: boolean | null;
@@ -248,11 +247,11 @@ export function RoundReport({ event, params, set }: ViewProps) {
     if (!d) return;
     const head: Cell[] = isPair
       ? [scope ? 'Place in group' : 'Rank', 'No.', 'Candidate', 'Groups', 'Against', 'Votes for', 'Votes against', 'Won pair', 'Went on']
-      : [scope ? 'Place in group' : 'Rank', 'No.', 'Candidate', 'Groups', ...d.categories.map((c) => c.name), 'Deduction', 'Score', 'Went on'];
+      : [scope ? 'Place in group' : 'Rank', 'No.', 'Candidate', 'Groups', ...d.categories.map((c) => c.name), 'Score', 'Went on'];
     const rows = d.rows.map((r): Cell[] =>
       isPair
         ? [r.position, r.candidate.number, r.candidate.name, groupNames(r.candidate), r.pair ? `No. ${r.pair.opponent.number} ${r.pair.opponent.name}` : null, r.pair?.votesFor ?? null, r.pair?.votesAgainst ?? null, r.pair ? (r.pair.won ? 'Yes' : 'No') : null, r.advanced === null ? null : r.advanced ? 'Yes' : 'No']
-        : [r.position, r.candidate.number, r.candidate.name, groupNames(r.candidate), ...d.categories.map((c) => r.categories[c.id]), r.deduction || null, r.score, r.advanced === null ? null : r.advanced ? 'Yes' : 'No'],
+        : [r.position, r.candidate.number, r.candidate.name, groupNames(r.candidate), ...d.categories.map((c) => r.categories[c.id]), r.score, r.advanced === null ? null : r.advanced ? 'Yes' : 'No'],
     );
     downloadExcel(`${event.name} ${title}`, round!.name, [head, ...rows], [event.name, title, `${d.judgesSubmitted} of ${d.judges} judges submitted`]);
   }
@@ -300,7 +299,6 @@ export function RoundReport({ event, params, set }: ViewProps) {
                           {c.name}
                         </th>
                       ))}
-                    <th className="n">Deduction</th>
                     <th className="n">Score</th>
                   </>
                 )}
@@ -334,7 +332,6 @@ export function RoundReport({ event, params, set }: ViewProps) {
                             {fmt(r.categories[c.id])}
                           </td>
                         ))}
-                      <td className="n">{r.deduction ? `-${fmt(r.deduction)}` : '-'}</td>
                       <td className="n">{fmt(r.score)}</td>
                     </>
                   )}

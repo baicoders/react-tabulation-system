@@ -120,7 +120,6 @@ export async function tabulatePairRound(roundId: number) {
     thumbUrl: pictureUrls(r.candidate.picturePath).thumbUrl,
     score: r.votes,
     rank: ranked[i].rank,
-    deduction: 0,
   }));
   const cut = round.advanceCount ? topN(ranked, round.advanceCount) : { advancing: ranked, tieAtCutLine: [] };
 

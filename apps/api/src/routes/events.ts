@@ -45,7 +45,13 @@ eventsRouter.post('/', async (req, res) => {
 
 eventsRouter.patch('/:id', async (req, res) => {
   const data = eventSchema.partial().parse(req.body);
-  res.json(await prisma.event.update({ where: { id: idParam.parse(req.params.id) }, data }));
+  const eventId = idParam.parse(req.params.id);
+  // Judges log in to the one live event, so only one can be live at a time.
+  if (data.status === 'ACTIVE') {
+    const live = await prisma.event.findFirst({ where: { status: 'ACTIVE', id: { not: eventId } } });
+    if (live) return res.status(409).json({ error: `${live.name} is live. Finish it before making another event live.` });
+  }
+  res.json(await prisma.event.update({ where: { id: eventId }, data }));
 });
 
 eventsRouter.delete('/:id', async (req, res) => {

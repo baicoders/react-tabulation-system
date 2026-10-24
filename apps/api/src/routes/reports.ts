@@ -128,7 +128,6 @@ reportsRouter.get('/rounds/:id/report', admin, async (req, res) => {
         candidate: candidateDto(e.candidate),
         categories: Object.fromEntries(round.categories.map((c) => [c.id, categoryAverage(e.candidateId, c.id)])),
         score: closed ? (e.score === null ? null : Number(e.score)) : (standing?.score ?? null),
-        deduction: standing?.deduction ?? 0,
         rank: closed ? e.rank : (standing?.rank ?? null),
         advanced: e.advanced,
         pair: pair

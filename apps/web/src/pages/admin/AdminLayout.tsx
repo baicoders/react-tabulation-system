@@ -23,7 +23,6 @@ const EVENT_NAV: { to: string; label: string; icon: IconName; end?: boolean }[] 
   { to: 'groups', label: 'Groups', icon: 'groups' },
   { to: 'rounds', label: 'Rounds and criteria', icon: 'rounds' },
   { to: 'judges', label: 'Judges', icon: 'judges' },
-  { to: 'deductions', label: 'Deductions', icon: 'deductions' },
   { to: 'reports', label: 'Reports', icon: 'reports' },
 ];
 

@@ -5,7 +5,6 @@ import { ZodError } from 'zod';
 import { UPLOADS_DIR } from './lib/images';
 import { authRouter } from './routes/auth';
 import { candidatesRouter } from './routes/candidates';
-import { deductionsRouter } from './routes/deductions';
 import { eventsRouter } from './routes/events';
 import { importRouter } from './routes/import';
 import { judgeRouter } from './routes/judge';
@@ -30,7 +29,6 @@ export function createApp() {
   app.use('/api', judgeRouter);
   app.use('/api', roundsRouter);
   app.use('/api', reportsRouter);
-  app.use('/api', deductionsRouter);
   app.use('/api', importRouter);
   app.use('/api/events', eventsRouter);
   // Admin-only setup routes. Mounted last because its admin check covers every /api path it sees.

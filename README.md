@@ -2,13 +2,15 @@
 
 A general, web-based tabulation system for pageants and contests. Judges score candidates from their own PCs over the venue LAN, and the server computes rankings and reports as soon as scores come in.
 
-Nothing is hardcoded to one pageant. Each event sets its own rounds, cut-offs (Top N), candidate groups, criteria, scoring method and deduction rules.
+Nothing is hardcoded to one pageant. Each event sets its own rounds, cut-offs (Top N), candidate groups, criteria and scoring method.
+
+The flow is kept simple: **judges input scores, the system calculates, the admin shows the report.**
 
 ## Features
 
 - **Admin**: manage events, candidates (with pictures), rounds, categories, criteria and judges; bulk import from CSV or Excel; reports by candidate, judge, category and overall.
 - **Judge**: log in with their name and a password set by the Admin, then score candidates by category.
-- **General scoring engine**: average or rank-sum scoring, weights, carry-over between rounds, drop highest and lowest, deductions, tie detection at the cut line. See [docs/scoring.md](docs/scoring.md).
+- **General scoring engine**: average or rank-sum scoring, weights, carry-over between rounds, drop highest and lowest, tie detection at the cut line. See [docs/scoring.md](docs/scoring.md).
 - **Built for large fields**: server-side pagination, debounced search, WebP thumbnails, lazy-loaded images and memoized score rows keep screens smooth with hundreds of candidates. See [docs/performance.md](docs/performance.md).
 - **Testing mode**: rehearse with fake scores. Judges get `Shift + J` (random scores) and `Shift + P` (perfect scores) shortcuts, and the Admin can reset scores afterwards.
 - **Runs offline**: one server PC runs everything in Docker; client PCs only need a browser.
@@ -143,4 +145,4 @@ All names, houses, criteria and weights in it are sample data.
 
 ## Status
 
-Working today: login; the admin screens for events, the event overview with its cut ladder, candidates (photos, groups, pagination), groups, rounds and criteria, and judges; judges scoring with auto-save and submit; pair-vote rounds such as Deba Teh; and opening, watching and closing rounds so the Top N move on. Reports cover the overall ranking with titles, each round, each candidate and each judge, split by any group, printable and exportable to Excel. Deductions from the event's own rules come off a round's score before it closes. Candidates import from CSV or Excel, with photos from a ZIP. See the [roadmap](docs/roadmap.md) and the [design notes](docs/design.md).
+Working today: login; the admin screens for events, the event overview with its cut ladder, candidates (photos, groups, pagination), groups, rounds and criteria, and judges; judges scoring with auto-save and submit; pair-vote rounds such as Deba Teh; and opening, watching and closing rounds so the Top N move on. Reports cover the overall ranking with titles, each round, each candidate and each judge, split by any group, printable and exportable to Excel. Deductions are handled on paper, outside the system. Candidates import from CSV or Excel, with photos from a ZIP. See the [roadmap](docs/roadmap.md) and the [design notes](docs/design.md).

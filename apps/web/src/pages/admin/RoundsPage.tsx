@@ -97,6 +97,10 @@ function RoundSettingsForm({
   const [carry, setCarry] = useState(initial?.carryOverWeight ? String(Math.round(initial.carryOverWeight * 100)) : '');
   const [dropExtremes, setDropExtremes] = useState(initial?.dropExtremes ?? false);
   const [tieBreak, setTieBreak] = useState<TieBreak>(initial?.tieBreak ?? 'SHARED_RANK');
+  // Most rounds need only a name and a cut. The rest opens on request, or by itself when a round already uses it.
+  const [more, setMore] = useState(
+    Boolean(initial && (initial.scoreMethod !== 'AVERAGE' || initial.carryOverWeight || initial.dropExtremes || initial.tieBreak !== 'SHARED_RANK')),
+  );
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: FormEvent) {
@@ -136,7 +140,7 @@ function RoundSettingsForm({
           <input className="input num" type="number" min={1} value={advance} onChange={(e) => setAdvance(e.target.value)} placeholder="Leave empty for the final" />
         </label>
       </div>
-      {kind === 'SCORED' && (
+      {kind === 'SCORED' && more && (
         <div className="form-row" style={{ marginTop: 16 }}>
           <label className="field">
             <span>Score method</span>
@@ -164,11 +168,16 @@ function RoundSettingsForm({
           </label>
         </div>
       )}
-      {kind === 'SCORED' && (
+      {kind === 'SCORED' && more && (
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 16 }}>
           <input type="checkbox" checked={dropExtremes} onChange={(e) => setDropExtremes(e.target.checked)} />
           Drop each candidate's highest and lowest judge score (needs 5 or more judges)
         </label>
+      )}
+      {kind === 'SCORED' && (
+        <button type="button" className="link-btn" style={{ marginTop: 16 }} onClick={() => setMore((m) => !m)}>
+          {more ? 'Fewer settings' : 'More settings: score method, carry-over, ties'}
+        </button>
       )}
       {error && <p className="error" style={{ marginTop: 12 }}>{error}</p>}
       <div className="form-actions">

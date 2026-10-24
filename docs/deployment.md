@@ -36,12 +36,46 @@ docker compose up -d
 
 The containers use `restart: unless-stopped`, so they also come back on their own after a reboot once Docker starts.
 
-Checklist:
+The whole night is three steps: **judges input scores, the system calculates, the admin shows the report.** Deductions are not entered in the system; the organizers handle them on paper.
 
-- [ ] Server PC on wired LAN, sleep disabled
-- [ ] Every judge PC opens the login page
-- [ ] Testing mode rehearsal done, then turned off and test scores reset
-- [ ] Backup taken before the first round
+### The day before: set up
+
+- [ ] Create the event (date, venue).
+- [ ] Groups: for example House and Level.
+- [ ] Candidates: Import, then Download template, fill it in, import it, then the photo ZIP. Check the count and the photos.
+- [ ] Rounds in order with their Top N, and each round's criteria. Every round must show "Weights add up to 100%".
+- [ ] Judges with their passwords. On the Judges screen no round may show "None".
+- [ ] On the event overview, press **Go live** so judges can log in.
+
+### One hour before: rehearse
+
+- [ ] **Turn on testing mode** and **Open** the first round.
+- [ ] Each judge logs in on their own PC and presses Shift + J, then Submit.
+- [ ] Check that progress and standings show on the overview.
+- [ ] Press **Start over**, then **Turn off testing mode**. The "Testing mode on" badge must be gone.
+- [ ] Take a backup (see Backups below).
+
+### During the show: each round
+
+- [ ] **Open** the round when its segment starts. For a pair-vote round (Deba Teh), set the pairs first.
+- [ ] Wait until every judge shows "Submitted".
+- [ ] **Close** the round. If candidates tie at the cut, the screen asks whether all of them go on.
+- [ ] Announce who goes on from the standings or the round report.
+
+### After the final round
+
+- [ ] Reports, Overall ranking: check it says "Final", then **Print** for the judges to sign.
+- [ ] **Download Excel** of the overall ranking and each round.
+- [ ] Press **Finish event**, then take a last backup and copy out the photos.
+
+### If something goes wrong
+
+| Problem | What to do |
+| --- | --- |
+| A judge's PC freezes | Scores are saved every half second. Log in on any other PC and carry on |
+| A judge typed a wrong score and already submitted | On the overview, press **Allow changes** under their name; they fix it and submit again |
+| A round was closed too early | **Reopen** it, as long as the next round has not started |
+| The server PC restarts | The app comes back by itself once Docker is running |
 
 ## Backups
 

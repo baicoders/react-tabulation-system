@@ -23,7 +23,7 @@ interface Tabulation {
   entries: number;
   complete: boolean;
   judges: { id: number; name: string; required: number; scored: number; done: boolean }[];
-  standings: { candidateId: number; number: number; name: string; thumbUrl: string | null; score: number; rank: number; deduction: number }[];
+  standings: { candidateId: number; number: number; name: string; thumbUrl: string | null; score: number; rank: number }[];
   direction: 'asc' | 'desc';
   advancingIds: number[];
   tieAtCutLine: number[];
@@ -159,6 +159,7 @@ export function EventOverviewPage() {
   const tab = useResource<Tabulation>(open ? `/rounds/${open.round.id}/tabulation` : null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
   const [tie, setTie] = useState<number[] | null>(null);
 
   // Live progress while a round is open: judges' counts and standings refresh every 5 seconds.
@@ -182,6 +183,7 @@ export function EventOverviewPage() {
   async function run(action: () => Promise<unknown>, after?: string) {
     setBusy(true);
     setMessage(null);
+    setFailed(false);
     try {
       await action();
       if (after) setMessage(after);
@@ -195,6 +197,7 @@ export function EventOverviewPage() {
         if (Array.isArray(tieIds)) setTie(tieIds as number[]);
       }
       setMessage(err instanceof Error ? err.message : 'Something went wrong');
+      setFailed(true);
     } finally {
       setBusy(false);
     }
@@ -222,9 +225,18 @@ export function EventOverviewPage() {
     if (!open || !confirm(`Let ${judge.name} change their scores in ${open.round.name}? They must submit again afterwards.`)) return;
     void run(() => api(`/rounds/${open.round.id}/judges/${judge.id}/unlock`, { method: 'POST' }), `${judge.name} can change their scores again.`); // taste-skill-ignore: API path, not copy
   };
-  const resetTestScores = () => {
-    if (!open || !confirm(`Delete every test score in ${open.round.name}? Judges start this round again.`)) return;
-    void run(() => api(`/rounds/${open.round.id}/reset-scores`, { method: 'POST', body: JSON.stringify({ testOnly: true }) }), 'Test scores deleted.');
+  // Rehearsal clean-up: every score, vote, pair and round result goes; candidates, rounds and judges stay.
+  const startOver = () => {
+    if (!confirm(`Start ${event.name} over? Every score and vote is deleted and all rounds go back to not started. Candidates, rounds and judges stay.`)) return;
+    void run(() => api(`/events/${event.id}/start-over`, { method: 'POST' }), 'Started over. Every round is back to not started.');
+  };
+  const setStatus = (status: 'ACTIVE' | 'CLOSED') => {
+    const ask =
+      status === 'ACTIVE'
+        ? `Make ${event.name} live? Judges can then log in to it.`
+        : `Finish ${event.name}? Judges can no longer log in. Results and reports stay.`;
+    if (!confirm(ask)) return;
+    void run(() => api(`/events/${event.id}`, { method: 'PATCH', body: JSON.stringify({ status }) }), status === 'ACTIVE' ? 'The event is live. Judges can log in.' : 'The event is finished.');
   };
 
   // The finding under the ladder's title: what the tabulator needs to know right now.
@@ -254,17 +266,28 @@ export function EventOverviewPage() {
           <p className="sub">
             {formatDateTime(event.date)}
             {event.venue ? ` at ${event.venue}` : ''}
+            {'. '}
+            {event.status === 'ACTIVE' ? 'Live: judges can log in.' : event.status === 'CLOSED' ? 'Finished.' : 'Setting up: judges cannot log in until it goes live.'}
           </p>
         </div>
         <div className="actions">
-          {event.testingMode && open && (
-            <button className="btn ghost" onClick={resetTestScores} disabled={busy}>
-              Delete test scores
+          {event.testingMode && (
+            <button className="btn ghost" onClick={startOver} disabled={busy}>
+              Start over
             </button>
           )}
           <button className="btn" onClick={() => run(() => api(`/events/${event.id}`, { method: 'PATCH', body: JSON.stringify({ testingMode: !event.testingMode }) }))} disabled={busy}>
             {event.testingMode ? 'Turn off testing mode' : 'Turn on testing mode'}
           </button>
+          {event.status === 'ACTIVE' ? (
+            <button className="btn" onClick={() => setStatus('CLOSED')} disabled={busy}>
+              Finish event
+            </button>
+          ) : (
+            <button className="btn primary" onClick={() => setStatus('ACTIVE')} disabled={busy}>
+              {event.status === 'CLOSED' ? 'Make live again' : 'Go live'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -373,7 +396,7 @@ export function EventOverviewPage() {
               )}
             </div>
             {message && (
-              <p className={tie || message.startsWith('Waiting') || message.includes('first') ? 'error' : 'muted'} style={{ marginTop: 8 }} role="status">
+              <p className={failed ? 'error' : 'muted'} style={{ marginTop: 8 }} role="status">
                 {message}
               </p>
             )}
@@ -425,7 +448,6 @@ export function EventOverviewPage() {
                         <th className="n" style={{ width: 48 }}>Rank</th>
                         <th className="n" style={{ width: 48 }}>No.</th>
                         <th>Candidate</th>
-                        <th className="n">Deduction</th>
                         <th className="n">Score</th>
                       </tr>
                     </thead>
@@ -442,7 +464,6 @@ export function EventOverviewPage() {
                                 <span>{s.name}</span>
                               </div>
                             </td>
-                            <td className="n">{s.deduction ? `-${s.deduction.toFixed(2)}` : <span className="muted">-</span>}</td>
                             <td className="n">{s.score.toFixed(2)}</td>
                           </tr>
                         );

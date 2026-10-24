@@ -79,11 +79,6 @@ export function applyCarryOver(current: CandidateScore[], earlier: CandidateScor
   });
 }
 
-/** Subtracts deduction points from point-based scores. Applied last, after tabulation. */
-export function applyDeductions(scores: CandidateScore[], deductions: Map<number, number>): CandidateScore[] {
-  return scores.map(({ candidateId, score }) => ({ candidateId, score: score - (deductions.get(candidateId) ?? 0) }));
-}
-
 /** Competition ranking: equal scores share a rank and the next rank is skipped (1, 1, 3). */
 export function assignRanks(scores: CandidateScore[], direction: Direction): RankedCandidate[] {
   const sorted = [...scores].sort((a, b) => (direction === 'desc' ? b.score - a.score : a.score - b.score));

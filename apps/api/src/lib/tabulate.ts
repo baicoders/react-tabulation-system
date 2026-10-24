@@ -3,7 +3,6 @@ import { pictureUrls } from './images';
 import { tabulatePairRound, type PairTally } from './tabulate-pairs';
 import {
   applyCarryOver,
-  applyDeductions,
   assignRanks,
   averageScores,
   rankSum,
@@ -32,7 +31,6 @@ export interface StandingRow {
   thumbUrl: string | null;
   score: number;
   rank: number;
-  deduction: number;
 }
 
 /** Share of a criterion inside its category, in percent: its weight, or an equal split when no weights are set. */
@@ -128,13 +126,6 @@ async function tabulateScoredRound(roundId: number) {
   const direction = round.scoreMethod === 'RANK_SUM' ? 'asc' : 'desc';
   let results: CandidateScore[] = round.scoreMethod === 'RANK_SUM' ? rankSum(totals) : averageScores(totals, { dropExtremes: round.dropExtremes });
 
-  const deductionRows = await prisma.deduction.groupBy({
-    by: ['candidateId'],
-    where: { roundId: round.id, candidateId: { in: entryIds } },
-    _sum: { points: true },
-  });
-  const deductions = new Map(deductionRows.map((d) => [d.candidateId, Number(d._sum.points ?? 0)]));
-
   if (round.scoreMethod === 'AVERAGE') {
     if (round.carryOverWeight !== null) {
       const previous = await prisma.round.findFirst({
@@ -147,7 +138,6 @@ async function tabulateScoredRound(roundId: number) {
         results = applyCarryOver(results, earlier, Number(round.carryOverWeight));
       }
     }
-    results = applyDeductions(results, deductions);
   }
 
   const ranked = assignRanks(results, direction);
@@ -161,7 +151,6 @@ async function tabulateScoredRound(roundId: number) {
       thumbUrl: pictureUrls(c.picturePath).thumbUrl,
       score: Math.round(r.score * 100) / 100,
       rank: r.rank,
-      deduction: deductions.get(r.candidateId) ?? 0,
     };
   });
   const cut = round.advanceCount ? topN(ranked, round.advanceCount) : { advancing: ranked, tieAtCutLine: [] };

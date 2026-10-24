@@ -119,6 +119,23 @@ roundsRouter.post('/rounds/:id/reset-scores', admin, async (req, res) => {
   res.json({ deleted: count });
 });
 
+// Rehearsal clean-up for the whole event: scores, votes, pairs and round results are deleted and every round goes
+// back to not started. Only while testing mode is on, so it cannot wipe a real night by accident.
+roundsRouter.post('/events/:eventId/start-over', admin, async (req, res) => {
+  const event = await prisma.event.findUniqueOrThrow({ where: { id: id.parse(req.params.eventId) } });
+  if (!event.testingMode) return res.status(409).json({ error: 'Turn on testing mode first. Start over is for rehearsals only.' });
+  const roundIds = (await prisma.round.findMany({ where: { eventId: event.id }, select: { id: true } })).map((r) => r.id);
+  const [scores, votes] = await prisma.$transaction([
+    prisma.score.deleteMany({ where: { criterion: { category: { roundId: { in: roundIds } } } } }),
+    prisma.pairVote.deleteMany({ where: { pair: { roundId: { in: roundIds } } } }),
+    prisma.pair.deleteMany({ where: { roundId: { in: roundIds } } }),
+    prisma.roundEntry.deleteMany({ where: { roundId: { in: roundIds } } }),
+    prisma.round.updateMany({ where: { id: { in: roundIds } }, data: { status: 'PENDING' } }),
+  ]);
+  await audit(event.id, req.user!.name, 'event.start-over', { scores: scores.count, votes: votes.count });
+  res.json({ deletedScores: scores.count, deletedVotes: votes.count });
+});
+
 // Pairs for a pair-vote round. Ranked: best of the round before meets the lowest (1 vs 10, 2 vs 9).
 // Random: a draw, for guidelines that add an element of chance. Pairs can be redrawn until the first vote.
 roundsRouter.post('/rounds/:id/pairs', admin, async (req, res) => {

@@ -11,7 +11,6 @@ There is no official tabulation standard, so each round picks its rules from the
 | Category weights | Percent of the round, must total 100 | Equal |
 | Carry-over | Start fresh, or carry a share of earlier rounds | Start fresh |
 | Drop extremes | Drop highest and lowest judge total (5 or more judges) | Off |
-| Deductions | Admin-defined rules, subtracted after tabulation | None |
 | Advance count | Top N go to the next round | Everyone |
 | Tie-break | Shared rank, category score, count of first places, Admin decides | Shared rank |
 
@@ -62,7 +61,7 @@ final = w * earlier rounds + (1 - w) * this round
 
 ## Deductions
 
-Deductions are applied last, after the final score is computed, and only to point-based results (average). The report shows raw score, deductions and adjusted score side by side.
+Not part of the system. The organizers apply deductions on paper, so the system only ever holds the judges' scores.
 
 ## Ranking and cut-offs
 

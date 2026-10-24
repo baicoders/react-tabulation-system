@@ -8,7 +8,7 @@
 - [x] Admin and judge login with JWT
 - [x] Events CRUD
 - [x] Candidates CRUD with server-side pagination, search and picture upload (WebP thumbnails)
-- [x] Scoring engine: average, rank-sum, carry-over, drop extremes, deductions, ranks, Top N with tie detection
+- [x] Scoring engine: average, rank-sum, carry-over, drop extremes, ranks, Top N with tie detection
 - [x] Judge score sheet prototype with pagination, memoized rows and `Shift + J` / `Shift + P`
 
 ## Done (admin screens)
@@ -34,14 +34,19 @@
 ## Done (reports)
 
 - [x] Overall ranking with Champion and 1st to 3rd Runner-up, provisional until the final round closes
-- [x] By round (category breakdown, deductions, who went on), by candidate (every judge's points) and by judge (check sheet)
+- [x] By round (category breakdown, who went on), by candidate (every judge's points) and by judge (check sheet)
 - [x] Split any ranking by group value (a champion per house, level or type)
 - [x] Print layout with signature lines, and Excel export
 
-## Done (deductions)
+## Decided: deductions stay on paper
 
-- [x] Deduction rules per event (Guideline 7, 5 points) and deductions per candidate per round, with a note and an audit trail
-- [x] Deductions shown in live standings and in the round reports; locked once the round closes
+Deductions are done on paper by the organizers, not in the system. A judge or committee can argue over a deduction without touching a stored score; the system only holds the judges' scores. The screen was removed; the two database tables stay unused.
+
+## Done (finishing touches)
+
+- [x] Go live and Finish event on the event overview (one live event at a time)
+- [x] Start over for rehearsals (testing mode only)
+- [x] Round form shows only name, judging type and Top N; the rest is under More settings
 
 ## Done (import)
 

@@ -18,9 +18,8 @@ The full schema is in [`apps/api/prisma/schema.prisma`](../apps/api/prisma/schem
 | `JudgeCategory` | Which categories a judge scores | `judgeId`, `categoryId` |
 | `Score` | One judge's points for one candidate on one criterion | `points`, `status` (DRAFT, SUBMITTED), `isTest` |
 | `Pair`, `PairVote` | Head-to-head rounds where judges pick a winner | `candidateAId`, `candidateBId`, `winnerId` |
-| `DeductionRule` | Event rule, e.g. "Guideline 7: 5 points" | `label`, `points` |
-| `Deduction` | A deduction applied to a candidate | `points`, `note`, `createdBy` |
-| `AuditLog` | Who did what, for resets and deductions | `actor`, `action`, `details` |
+| `DeductionRule`, `Deduction` | Not used: deductions are handled on paper, outside the system | |
+| `AuditLog` | Who did what: opening, closing, resets, imports | `actor`, `action`, `details` |
 
 ## Notes
 

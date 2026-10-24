@@ -86,8 +86,6 @@ async function main() {
     }
   }
 
-  // Guideline 13: breaking guideline 7 costs 5 points. The wording here is sample text.
-  await prisma.deductionRule.create({ data: { eventId: event.id, label: 'Guideline 7', points: 5 } });
 
   const passwordHash = await bcrypt.hash('judge1234', 10);
   for (const name of JUDGES) {

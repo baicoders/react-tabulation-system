@@ -26,7 +26,7 @@ Judges log in to the event whose status is `ACTIVE`. The username is the judge's
 | GET | `/events` | |
 | GET | `/events/:id` | Includes rounds and groups |
 | POST | `/events` | `{ name, date?, venue?, status?, testingMode? }` |
-| PATCH | `/events/:id` | Any field from POST |
+| PATCH | `/events/:id` | Any field from POST. Setting `status` to `ACTIVE` (live) is refused while another event is live: judges log in to the one live event |
 | DELETE | `/events/:id` | |
 
 ## Candidates
@@ -119,6 +119,7 @@ Pair-vote rounds come back in `/judge/sheet` as `pairRounds: [{ id, name, pairs:
 | POST | `/rounds/:id/pairs` | Pair-vote rounds: `{ method: "RANKED" \| "RANDOM" }`. Ranked pairs 1st with last of the round before (1 v 10, 2 v 9); random is a draw. Needs an even field; can be redone until the first vote |
 | POST | `/rounds/:id/judges/:judgeId/unlock` | Lets one judge change their submitted scores or votes in the round |
 | POST | `/rounds/:id/reset-scores` | `{ testOnly? }` (default true). Not allowed on a closed round |
+| POST | `/events/:eventId/start-over` | Rehearsals only (testing mode on): deletes every score, vote, pair and round result, and every round goes back to not started. Candidates, rounds and judges stay |
 
 Opening, closing, reopening, unlocking and resets are written to the audit log.
 
@@ -134,22 +135,6 @@ Group values match without regard to case; a value the event does not have yet i
 
 Photos from a ZIP are read in the browser and sent one by one to `POST /candidates/:id/picture`. Each photo is matched by the sheet's `Photo file` column, then by number (`12.jpg`), then by name (`maria-santos.jpg`).
 
-## Deductions (admin)
-
-A deduction comes off one candidate's score in one round, after tabulation. Only rounds that are not closed and are scored by average can take one; pair-vote and rank-sum rounds are refused because points do not change them.
-
-| Method | Path | Notes |
-| --- | --- | --- |
-| GET | `/events/:eventId/deduction-rules` | Rules with how often each was used |
-| POST | `/events/:eventId/deduction-rules` | `{ label, points }`, for example `{ "label": "Guideline 7", "points": 5 }` |
-| PATCH | `/deduction-rules/:id` | `{ label?, points? }` |
-| DELETE | `/deduction-rules/:id` | Deductions made under it stay, without the rule's name |
-| GET | `/events/:eventId/deductions` | Newest first, with candidate, round, rule, note, who added it and when |
-| POST | `/events/:eventId/deductions` | `{ candidateId, roundId, ruleId?, points?, note? }`. Points default to the rule's; with no rule, `points` and `note` are required. The candidate must be in the round |
-| DELETE | `/deductions/:id` | `{ reason }` (required). Not allowed once the round is closed |
-
-Adding and removing deductions are written to the audit log. `GET /events/:eventId/candidates` also takes `roundId` to list only that round's candidates.
-
 ## Reports (admin)
 
 Read only. Built from submitted scores and from the results saved when rounds close. `groupValueId` limits a report to one value of a group (one house, one level) and recounts places from 1 inside it.
@@ -157,7 +142,7 @@ Read only. Built from submitted scores and from the results saved when rounds cl
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/events/:eventId/reports/overall` | `?groupValueId`. Each candidate's place: furthest round reached, then rank there (while that round is open, rank in the last closed round). `title` (Champion, 1st to 3rd Runner-up) once the final round is closed |
-| GET | `/rounds/:id/report` | `?groupValueId`. Per candidate: category scores (judges' average, out of 100), deduction, score, rank, whether they went on; for pair rounds the opponent and votes |
+| GET | `/rounds/:id/report` | `?groupValueId`. Per candidate: category scores (judges' average, out of 100), score, rank, whether they went on; for pair rounds the opponent and votes |
 | GET | `/candidates/:id/report` | Every round the candidate entered, with each judge's points per criterion, or their vote in a pair round |
 | GET | `/rounds/:id/judges/:judgeId/report` | Every score one judge gave in a round, with their total out of 100 and when it was saved |
 
@@ -165,4 +150,4 @@ The screen prints any report (signature lines on the overall and judge reports) 
 
 ## Coming next
 
-Deductions screen and bulk import. See the [roadmap](roadmap.md).
+See the [roadmap](roadmap.md).
