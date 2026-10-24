@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import type { Group } from '../../api/types';
 import { CandidatePhoto } from '../../components/CandidatePhoto';
+import { ImportCandidates } from './ImportCandidates';
 import { Pagination } from '../../components/Pagination';
 import { useDebounced } from '../../hooks/useDebounced';
 import { usePaginated } from '../../hooks/usePaginated';
@@ -25,6 +26,7 @@ export function CandidatesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const q = useDebounced(search);
 
@@ -66,11 +68,25 @@ export function CandidatesPage() {
           </p>
         </div>
         <div className="actions">
+          <button className="btn" onClick={() => setImporting(true)} disabled={importing}>
+            Import
+          </button>
           <button className="btn primary" onClick={() => setAdding(true)} disabled={adding}>
             Add candidate
           </button>
         </div>
       </div>
+
+      {importing && (
+        <ImportCandidates
+          event={event}
+          onClose={() => setImporting(false)}
+          onImported={() => {
+            reload();
+            reloadEvent();
+          }}
+        />
+      )}
 
       {adding && (
         <AddCandidateForm

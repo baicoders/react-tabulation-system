@@ -122,6 +122,18 @@ Pair-vote rounds come back in `/judge/sheet` as `pairRounds: [{ id, name, pairs:
 
 Opening, closing, reopening, unlocking and resets are written to the audit log.
 
+## Bulk import (admin)
+
+The browser reads the CSV or Excel file (first sheet, first non-empty row as headers) and sends its rows. Headers are matched by name: `Number` (or `No.`), `Name` (or `Full name`), a column per group named after it (`House`, `Level`), and an optional `Photo file`. Other columns are ignored and listed.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| POST | `/events/:eventId/import/candidates` | `{ dryRun, rows: [{ line, number, name, groups: { House: "Red House" } }] }`, up to 2,000 rows. Returns each row as `new`, `update` (that number exists) or `error` with a reason, the group values that would be created, and ignored columns. With `dryRun: false`, saves every valid row in one transaction |
+
+Group values match without regard to case; a value the event does not have yet is created. A file without a column for a group leaves that group as it was.
+
+Photos from a ZIP are read in the browser and sent one by one to `POST /candidates/:id/picture`. Each photo is matched by the sheet's `Photo file` column, then by number (`12.jpg`), then by name (`maria-santos.jpg`).
+
 ## Deductions (admin)
 
 A deduction comes off one candidate's score in one round, after tabulation. Only rounds that are not closed and are scored by average can take one; pair-vote and rank-sum rounds are refused because points do not change them.

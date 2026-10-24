@@ -7,6 +7,7 @@ import { authRouter } from './routes/auth';
 import { candidatesRouter } from './routes/candidates';
 import { deductionsRouter } from './routes/deductions';
 import { eventsRouter } from './routes/events';
+import { importRouter } from './routes/import';
 import { judgeRouter } from './routes/judge';
 import { reportsRouter } from './routes/reports';
 import { roundsRouter } from './routes/rounds';
@@ -16,7 +17,7 @@ export function createApp() {
   const app = express();
 
   app.use(cors());
-  app.use(express.json({ limit: '5mb' }));
+  app.use(express.json({ limit: '10mb' }));
   // Picture file names change on every upload, so they can be cached for a long time.
   app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '30d', immutable: true }));
 
@@ -30,6 +31,7 @@ export function createApp() {
   app.use('/api', roundsRouter);
   app.use('/api', reportsRouter);
   app.use('/api', deductionsRouter);
+  app.use('/api', importRouter);
   app.use('/api/events', eventsRouter);
   // Admin-only setup routes. Mounted last because its admin check covers every /api path it sees.
   app.use('/api', setupRouter);

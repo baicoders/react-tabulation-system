@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { deleteCandidatePicture } from '../lib/images';
 import { prisma } from '../lib/prisma';
 import { requireRole } from '../middleware/auth';
 
@@ -48,6 +49,10 @@ eventsRouter.patch('/:id', async (req, res) => {
 });
 
 eventsRouter.delete('/:id', async (req, res) => {
-  await prisma.event.delete({ where: { id: idParam.parse(req.params.id) } });
+  const eventId = idParam.parse(req.params.id);
+  const pictures = await prisma.candidate.findMany({ where: { eventId, picturePath: { not: null } }, select: { picturePath: true } });
+  await prisma.event.delete({ where: { id: eventId } });
+  // The database cascade removes the candidates; their photo files go too.
+  await Promise.all(pictures.map((p) => deleteCandidatePicture(p.picturePath)));
   res.status(204).end();
 });

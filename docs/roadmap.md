@@ -43,10 +43,15 @@
 - [x] Deduction rules per event (Guideline 7, 5 points) and deductions per candidate per round, with a note and an audit trail
 - [x] Deductions shown in live standings and in the round reports; locked once the round closes
 
+## Done (import)
+
+- [x] Bulk import of candidates from CSV or Excel with a checked preview and a template with the event's groups
+- [x] Photos from a ZIP matched by photo column, number or name, uploaded with progress
+
 ## Next
 
 - [ ] Assign judges to some categories only (the API supports it; the screen gives every judge every category)
-- [ ] Bulk import from CSV and Excel with preview, plus pictures from a ZIP matched by file name
+
 
 - [ ] Testing mode banner and score reset (all, by category, by judge, test only) with audit log
 - [ ] Live report refresh while judges submit
