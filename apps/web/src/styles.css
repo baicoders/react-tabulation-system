@@ -343,3 +343,9 @@ tr.titled td { background: var(--raised); }
   .report-block { break-inside: avoid-page; }
   .signatures { break-inside: avoid; }
 }
+
+/* judge assignment grid: a tick per judge and scored category */
+th.center, td.center { text-align: center; }
+table.assign input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+table.assign input[type="checkbox"]:disabled { cursor: not-allowed; }
+table.assign tfoot td { border-top: 1px solid var(--border); font-size: var(--fs-small); font-variant-numeric: tabular-nums; }

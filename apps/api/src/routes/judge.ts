@@ -60,6 +60,7 @@ judgeRouter.get('/judge/sheet', async (req, res) => {
   });
 
   const result = [];
+  const notScoring: string[] = [];
   for (const r of rounds) {
     const categories = [];
     for (const c of r.categories) {
@@ -76,7 +77,9 @@ judgeRouter.get('/judge/sheet', async (req, res) => {
         submitted,
       });
     }
-    result.push({ id: r.id, name: r.name, kind: 'SCORED' as const, entries: r._count.entries, categories });
+    // A round where this judge scores nothing is left off their sheet, and named so the screen can say so.
+    if (categories.length === 0) notScoring.push(r.name);
+    else result.push({ id: r.id, name: r.name, kind: 'SCORED' as const, entries: r._count.entries, categories });
   }
 
   // Pair-vote rounds: every judge in the event picks one winner per pair.
@@ -108,7 +111,7 @@ judgeRouter.get('/judge/sheet', async (req, res) => {
     return { id: r.id, name: r.name, kind: 'PAIR_VOTE' as const, entries: r._count.entries, pairs, voted, submitted };
   });
 
-  res.json({ event, judge: { id: judgeId, name: req.user!.name }, rounds: result, pairRounds: pairRoundsOut });
+  res.json({ event, judge: { id: judgeId, name: req.user!.name }, rounds: result, pairRounds: pairRoundsOut, notScoring });
 });
 
 /** The pair-vote round, checked: open, in the judge's event. */

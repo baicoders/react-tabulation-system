@@ -83,7 +83,7 @@ List response:
 | DELETE | `/criteria/:id` | |
 | GET | `/events/:eventId/judges` | `[{ id, name, categoryIds, submittedScores }]` |
 | POST | `/events/:eventId/judges` | `{ name, password, categoryIds? }`; password at least 4 characters, stored hashed |
-| PATCH | `/judges/:id` | `{ name?, password?, categoryIds? }` |
+| PATCH | `/judges/:id` | `{ name?, password?, categoryIds? }`. Assigning or unassigning a category in a closed round is refused (`409`); it would change who that round's results came from |
 | DELETE | `/judges/:id` | |
 
 Weights are percents (0 to 100) or `null` for equal weights. `carryOverWeight` is a share from 0 to 1. Decimal columns are returned as numbers.
@@ -101,7 +101,7 @@ All scoped to the judge's own event and to categories assigned to them, in round
 
 Scores given while testing mode is on are saved with `isTest: true`.
 
-Pair-vote rounds come back in `/judge/sheet` as `pairRounds: [{ id, name, pairs: [{ id, a, b, myVote }], voted, submitted }]`.
+Pair-vote rounds come back in `/judge/sheet` as `pairRounds: [{ id, name, pairs: [{ id, a, b, myVote }], voted, submitted }]`. Open rounds where the judge is assigned no category are left out and named in `notScoring`.
 
 | Method | Path | Notes |
 | --- | --- | --- |

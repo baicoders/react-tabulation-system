@@ -48,11 +48,13 @@
 - [x] Bulk import of candidates from CSV or Excel with a checked preview and a template with the event's groups
 - [x] Photos from a ZIP matched by photo column, number or name, uploaded with progress
 
+## Done (judge assignment)
+
+- [x] Judges screen grid: tick which rounds (categories) each judge scores, with a count per round and a warning when one has no judge
+- [x] Locked for closed rounds; an unassigned judge sees which open round they sit out
+
 ## Next
 
-- [ ] Assign judges to some categories only (the API supports it; the screen gives every judge every category)
-
-
-- [ ] Testing mode banner and score reset (all, by category, by judge, test only) with audit log
+- [ ] Reset real scores by judge or for a whole round from the screen (testing mode, its banner and the test-score reset are done)
 - [ ] Live report refresh while judges submit
 - [ ] One-click backup from the Admin screen

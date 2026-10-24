@@ -180,8 +180,25 @@ setupRouter.patch('/judges/:id', async (req, res) => {
     .object({ name, password: z.string().min(4), categoryIds: z.array(z.number().int()) })
     .partial()
     .parse(req.body);
+  const judgeId = id.parse(req.params.id);
+
+  if (body.categoryIds) {
+    // Assignments can change while a round is open or not started, but not for a closed round:
+    // that would change who its results came from.
+    const current = await prisma.judge.findUniqueOrThrow({ where: { id: judgeId }, select: { eventId: true, categories: { select: { categoryId: true } } } });
+    const before = new Set(current.categories.map((c) => c.categoryId));
+    const after = new Set(body.categoryIds);
+    const changed = [...new Set([...before, ...after])].filter((cid) => before.has(cid) !== after.has(cid));
+    const touched = await prisma.category.findMany({ where: { id: { in: changed } }, select: { id: true, round: { select: { eventId: true, name: true, status: true } } } });
+    if (touched.length !== changed.length || touched.some((c) => c.round.eventId !== current.eventId)) {
+      return res.status(400).json({ error: 'A category is not part of this event' });
+    }
+    const closed = touched.find((c) => c.round.status === 'CLOSED');
+    if (closed) return res.status(409).json({ error: `${closed.round.name} is closed, so who judged it cannot change` });
+  }
+
   const judge = await prisma.judge.update({
-    where: { id: id.parse(req.params.id) },
+    where: { id: judgeId },
     data: {
       ...(body.name ? { name: body.name } : {}),
       ...(body.password ? { passwordHash: await bcrypt.hash(body.password, 10) } : {}),

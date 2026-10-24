@@ -32,6 +32,7 @@ interface Sheet {
   judge: { id: number; name: string };
   rounds: { id: number; name: string; entries: number; categories: SheetCategory[] }[];
   pairRounds: PairRound[];
+  notScoring: string[];
 }
 
 interface Row {
@@ -265,8 +266,8 @@ export function ScoreSheetPage() {
           {sheet.data && categories.length === 0 && !pairRound && (
             <div className="title-row">
               <div>
-                <h1>No round is open</h1>
-                <p className="sub">The tabulator opens each round when it starts. Check again once they say it is open.</p>
+                <h1>{sheet.data.notScoring.length ? `You are not scoring ${sheet.data.notScoring.join(' or ')}` : 'No round is open'}</h1>
+                <p className="sub">{sheet.data.notScoring.length ? 'The tabulator set the other judges to score it. Check again when the next round opens.' : 'The tabulator opens each round when it starts. Check again once they say it is open.'}</p>
               </div>
               <div className="actions">
                 <button className="btn" onClick={sheet.reload}>
