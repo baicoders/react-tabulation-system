@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { api } from '../../api/client';
 import type { Judge, Round } from '../../api/types';
 import { Initial } from '../../components/Initial';
+import { useDebouncedCallback, useLiveUpdates } from '../../hooks/useLiveUpdates';
 import { useResource } from '../../hooks/useResource';
 import { plural } from '../../lib/format';
 import { useAdmin } from './AdminLayout';
@@ -19,6 +20,13 @@ export function JudgesPage() {
   const { event, reloadEvent } = useAdmin();
   const judges = useResource<Judge[]>(event ? `/events/${event.id}/judges` : null);
   const rounds = useResource<Round[]>(event ? `/events/${event.id}/rounds` : null);
+  // Submissions and assignment changes arrive live; a round closing also locks its columns.
+  const refreshJudges = useDebouncedCallback(() => judges.reload());
+  const refreshRounds = useDebouncedCallback(() => rounds.reload());
+  useLiveUpdates(event?.id, (notice) => {
+    refreshJudges();
+    if (notice.type === 'round') refreshRounds();
+  });
   const [adding, setAdding] = useState(false);
   const [resetFor, setResetFor] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);

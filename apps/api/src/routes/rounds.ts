@@ -2,6 +2,7 @@ import { randomInt } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { publish } from '../lib/live';
 import { tabulateRound } from '../lib/tabulate';
 import { requireRole } from '../middleware/auth';
 
@@ -35,6 +36,7 @@ roundsRouter.post('/rounds/:id/open', admin, async (req, res) => {
   }
   await prisma.round.update({ where: { id: round.id }, data: { status: 'OPEN' } });
   await audit(round.eventId, req.user!.name, 'round.open', { roundId: round.id, name: round.name });
+  publish(round.eventId, { type: 'round', roundId: round.id });
   res.json(await tabulateRound(round.id));
 });
 
@@ -76,6 +78,7 @@ roundsRouter.post('/rounds/:id/close', admin, async (req, res) => {
       : []),
   ]);
   await audit(round.eventId, req.user!.name, 'round.close', { roundId, name: round.name, advanced: tab.advancingIds.length, includeTies });
+  publish(round.eventId, { type: 'round', roundId: round.id });
   res.json({ closed: true, advanced: tab.advancingIds.length, nextRound: next ? { id: next.id, name: next.name } : null });
 });
 
@@ -90,6 +93,7 @@ roundsRouter.post('/rounds/:id/reopen', admin, async (req, res) => {
     ...(next ? [prisma.roundEntry.deleteMany({ where: { roundId: next.id } })] : []),
   ]);
   await audit(round.eventId, req.user!.name, 'round.reopen', { roundId: round.id, name: round.name });
+  publish(round.eventId, { type: 'round', roundId: round.id });
   res.json({ reopened: true });
 });
 
@@ -102,6 +106,7 @@ roundsRouter.post('/rounds/:id/judges/:judgeId/unlock', admin, async (req, res) 
   const votes = await prisma.pairVote.updateMany({ where: { judgeId, pair: { roundId: round.id } }, data: { status: 'DRAFT' } });
   const count = scores.count + votes.count;
   await audit(round.eventId, req.user!.name, 'scores.unlock', { roundId: round.id, judgeId, count });
+  publish(round.eventId, { type: 'round', roundId: round.id });
   res.json({ unlocked: count });
 });
 
@@ -116,6 +121,7 @@ roundsRouter.post('/rounds/:id/reset-scores', admin, async (req, res) => {
   const votes = await prisma.pairVote.deleteMany({ where: { pair: { roundId: round.id }, ...testFilter } });
   const count = scores.count + votes.count;
   await audit(round.eventId, req.user!.name, 'scores.reset', { roundId: round.id, testOnly, count });
+  publish(round.eventId, { type: 'round', roundId: round.id });
   res.json({ deleted: count });
 });
 
@@ -133,6 +139,7 @@ roundsRouter.post('/events/:eventId/start-over', admin, async (req, res) => {
     prisma.round.updateMany({ where: { id: { in: roundIds } }, data: { status: 'PENDING' } }),
   ]);
   await audit(event.id, req.user!.name, 'event.start-over', { scores: scores.count, votes: votes.count });
+  publish(event.id, { type: 'round' });
   res.json({ deletedScores: scores.count, deletedVotes: votes.count });
 });
 
@@ -176,5 +183,6 @@ roundsRouter.post('/rounds/:id/pairs', admin, async (req, res) => {
     }),
   ]);
   await audit(round.eventId, req.user!.name, 'pairs.set', { roundId: round.id, method, pairs: order.length / 2 });
+  publish(round.eventId, { type: 'round', roundId: round.id });
   res.json(await tabulateRound(round.id));
 });

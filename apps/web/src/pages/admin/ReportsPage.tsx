@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useDebouncedCallback, useLiveUpdates } from '../../hooks/useLiveUpdates';
 import { useAdmin } from './AdminLayout';
 import { CandidateReport, JudgeReport, OverallReport, RoundReport } from './reportViews';
 
@@ -14,6 +16,10 @@ type View = (typeof VIEWS)[number]['key'];
 export function ReportsPage() {
   const { event } = useAdmin();
   const [params, setParams] = useSearchParams();
+  // Every live notice bumps the version; the open report reloads its data and keeps showing the old table meanwhile.
+  const [version, setVersion] = useState(0);
+  const bump = useDebouncedCallback(() => setVersion((v) => v + 1), 500);
+  useLiveUpdates(event?.id, bump);
   const view = (VIEWS.find((v) => v.key === params.get('view'))?.key ?? 'overall') as View;
 
   // Filters live in the URL, so a report can be reloaded or shared as it is.
@@ -49,10 +55,10 @@ export function ReportsPage() {
         ))}
       </div>
 
-      {view === 'overall' && <OverallReport event={event} params={params} set={set} />}
-      {view === 'round' && <RoundReport event={event} params={params} set={set} />}
-      {view === 'candidate' && <CandidateReport event={event} params={params} set={set} />}
-      {view === 'judge' && <JudgeReport event={event} params={params} set={set} />}
+      {view === 'overall' && <OverallReport event={event} params={params} set={set} version={version} />}
+      {view === 'round' && <RoundReport event={event} params={params} set={set} version={version} />}
+      {view === 'candidate' && <CandidateReport event={event} params={params} set={set} version={version} />}
+      {view === 'judge' && <JudgeReport event={event} params={params} set={set} version={version} />}
     </section>
   );
 }

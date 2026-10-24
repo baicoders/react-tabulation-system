@@ -7,6 +7,7 @@ import { TallyMark } from '../../components/TallyMark';
 import { useAutoInputShortcuts } from '../../hooks/useAutoInputShortcuts';
 import { useDebounced } from '../../hooks/useDebounced';
 import { usePaginated } from '../../hooks/usePaginated';
+import { useDebouncedCallback, useLiveUpdates } from '../../hooks/useLiveUpdates';
 import { useResource } from '../../hooks/useResource';
 import { PairVotePanel, type PairRound } from './PairVotePanel';
 
@@ -111,6 +112,12 @@ const ScoreRow = memo(function ScoreRow({ row, criteria, edits, locked, onChange
 export function ScoreSheetPage() {
   const { user, logout } = useAuth();
   const sheet = useResource<Sheet>('/judge/sheet');
+  // The tabulator opening or closing a round, toggling testing mode or letting this judge change scores
+  // arrives as a live notice, so the sheet updates without the judge pressing anything.
+  const refreshSheet = useDebouncedCallback(() => sheet.reload());
+  useLiveUpdates(user?.eventId, (notice) => {
+    if (notice.type === 'round' || notice.type === 'event' || notice.type === 'judges') refreshSheet();
+  });
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);

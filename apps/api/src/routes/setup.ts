@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import { publish } from '../lib/live';
 import { prisma } from '../lib/prisma';
 import { requireRole } from '../middleware/auth';
 
@@ -140,6 +141,7 @@ setupRouter.delete('/criteria/:id', async (req, res) => {
 // Judges -----------------------------------------------------------------
 
 const judgeSelect = {
+  eventId: true,
   id: true,
   name: true,
   categories: { select: { categoryId: true } },
@@ -208,6 +210,7 @@ setupRouter.patch('/judges/:id', async (req, res) => {
     },
     select: judgeSelect,
   });
+  publish(judge.eventId, { type: 'judges' });
   res.json(judgeDto(judge));
 });
 

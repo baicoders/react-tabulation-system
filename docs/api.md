@@ -151,3 +151,13 @@ The screen prints any report (signature lines on the overall and judge reports) 
 ## Coming next
 
 See the [roadmap](roadmap.md).
+
+## Live updates
+
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/events/:eventId/stream` | Admin, or a judge of that event | Server-Sent Events. Each message is `data: { "type": ..., "roundId"? }` |
+
+Types: `scores` (a judge saved or submitted scores), `votes` (pair votes), `round` (opened, closed, reopened, pairs set, scores unlocked or reset, Start over), `event` (Go live, Finish, testing mode), `judges` (assignment changed). A notice carries no scores: each screen reloads only the data it shows, through the normal API with its own permissions. A comment line every 20 seconds keeps the connection open, and the `X-Accel-Buffering: no` header stops nginx from holding messages back.
+
+The browser reads the stream with `fetch` (so the login token travels in a header, not the URL) in `apps/web/src/hooks/useLiveUpdates.ts`, reconnects after 3 seconds, and collapses a burst of notices into one reload.

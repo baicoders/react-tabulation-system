@@ -10,7 +10,11 @@ interface ViewProps {
   event: EventDetail;
   params: URLSearchParams;
   set: (changes: Record<string, string | null>) => void;
+  /** Goes up on every live notice; adding it to a request makes the open report reload its data. */
+  version: number;
 }
+
+const live = (path: string, version: number) => `${path}${path.includes('?') ? '&' : '?'}v=${version}`;
 
 interface ReportCandidate {
   id: number;
@@ -117,9 +121,9 @@ interface OverallData {
   }[];
 }
 
-export function OverallReport({ event, params, set }: ViewProps) {
+export function OverallReport({ event, params, set, version }: ViewProps) {
   const group = params.get('group');
-  const data = useResource<OverallData>(`/events/${event.id}/reports/overall${group ? `?groupValueId=${group}` : ''}`);
+  const data = useResource<OverallData>(live(`/events/${event.id}/reports/overall${group ? `?groupValueId=${group}` : ''}`, version));
   const judges = useResource<{ name: string }[]>(`/events/${event.id}/judges`);
   const scope = groupLabel(event.groups, group);
   const title = scope ? `Overall ranking, ${scope}` : 'Overall ranking';
@@ -232,10 +236,10 @@ function RoundSelect({ event, value, onChange }: { event: EventDetail; value: nu
   );
 }
 
-export function RoundReport({ event, params, set }: ViewProps) {
+export function RoundReport({ event, params, set, version }: ViewProps) {
   const round = useRoundChoice(event, params);
   const group = params.get('group');
-  const data = useResource<RoundData>(round ? `/rounds/${round.id}/report${group ? `?groupValueId=${group}` : ''}` : null);
+  const data = useResource<RoundData>(round ? live(`/rounds/${round.id}/report${group ? `?groupValueId=${group}` : ''}`, version) : null);
   const d = data.data && round && data.data.round.id === round.id ? data.data : null;
   const scope = groupLabel(event.groups, group);
   const isPair = d?.round.kind === 'PAIR_VOTE';
@@ -364,12 +368,12 @@ interface CandidateData {
   }[];
 }
 
-export function CandidateReport({ event, params, set }: ViewProps) {
+export function CandidateReport({ event, params, set, version }: ViewProps) {
   const [search, setSearch] = useState('');
   const q = useDebounced(search);
   const list = useResource<{ items: ReportCandidate[] }>(`/events/${event.id}/candidates?pageSize=100${q ? `&q=${encodeURIComponent(q)}` : ''}`);
   const chosen = params.get('candidate');
-  const data = useResource<CandidateData>(chosen ? `/candidates/${chosen}/report` : null);
+  const data = useResource<CandidateData>(chosen ? live(`/candidates/${chosen}/report`, version) : null);
   const d = data.data && String(data.data.candidate.id) === chosen ? data.data : null;
   const title = d ? `No. ${d.candidate.number} ${d.candidate.name}` : 'Candidate report';
 
@@ -496,11 +500,11 @@ interface JudgeData {
   rows: { candidate: ReportCandidate; points: Record<number, number>; total: number | null; submitted: boolean; updatedAt: string | null; vote?: 'won' | 'lost' | null }[];
 }
 
-export function JudgeReport({ event, params, set }: ViewProps) {
+export function JudgeReport({ event, params, set, version }: ViewProps) {
   const round = useRoundChoice(event, params);
   const judges = useResource<{ id: number; name: string }[]>(`/events/${event.id}/judges`);
   const judgeId = params.get('judge') ?? (judges.data?.[0] ? String(judges.data[0].id) : null);
-  const data = useResource<JudgeData>(round && judgeId ? `/rounds/${round.id}/judges/${judgeId}/report` : null);
+  const data = useResource<JudgeData>(round && judgeId ? live(`/rounds/${round.id}/judges/${judgeId}/report`, version) : null);
   const d = data.data && round && data.data.round.id === round.id && String(data.data.judge.id) === judgeId ? data.data : null;
   const isPair = d?.round.kind === 'PAIR_VOTE';
   const title = d ? `${d.judge.name}, ${d.round.name}` : 'Judge report';

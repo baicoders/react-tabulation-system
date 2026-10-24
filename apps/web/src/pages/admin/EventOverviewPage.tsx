@@ -4,6 +4,7 @@ import { api, ApiError } from '../../api/client';
 import type { EventDetail, RoundSummary } from '../../api/types';
 import { CandidatePhoto } from '../../components/CandidatePhoto';
 import { Initial } from '../../components/Initial';
+import { useDebouncedCallback, useLiveUpdates } from '../../hooks/useLiveUpdates';
 import { useResource } from '../../hooks/useResource';
 import { formatDateTime, plural } from '../../lib/format';
 import { useAdmin } from './AdminLayout';
@@ -162,12 +163,27 @@ export function EventOverviewPage() {
   const [failed, setFailed] = useState(false);
   const [tie, setTie] = useState<number[] | null>(null);
 
-  // Live progress while a round is open: judges' counts and standings refresh every 5 seconds.
+  // Live updates: the server pushes a notice the moment a judge saves or a round changes, and only the data
+  // reloads, never the page. A burst of notices (a judge saving a page) becomes one reload.
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const refreshScores = useDebouncedCallback(() => {
+    tab.reload();
+    setUpdatedAt(new Date());
+  });
+  const refreshAll = useDebouncedCallback(() => {
+    reloadEvent();
+    reloadEvents();
+    tab.reload();
+    setUpdatedAt(new Date());
+  });
+  const live = useLiveUpdates(event?.id, (notice) => (notice.type === 'round' || notice.type === 'event' ? refreshAll() : refreshScores()));
+
+  // Fallback while the stream is reconnecting: ask every 15 seconds instead.
   useEffect(() => {
-    if (!open) return;
-    const timer = window.setInterval(tab.reload, 5000);
+    if (!open || live) return;
+    const timer = window.setInterval(tab.reload, 15000);
     return () => window.clearInterval(timer);
-  }, [open?.round.id, tab.reload]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open?.round.id, live, tab.reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!event) return <p className="muted">Loading event…</p>;
 
@@ -323,6 +339,11 @@ export function EventOverviewPage() {
                 <h2>How the field narrows</h2>
                 <p className="muted" style={{ marginTop: 4 }}>{finding}</p>
               </div>
+              <span className="meta" style={{ whiteSpace: 'nowrap' }} role="status">
+                {live
+                  ? `Live${updatedAt ? `, updated ${updatedAt.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}` : ''}`
+                  : 'Reconnecting… checking every 15 seconds'}
+              </span>
             </header>
 
             {ladder.length === 0 ? (

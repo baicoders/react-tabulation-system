@@ -61,5 +61,5 @@ Deductions are done on paper by the organizers, not in the system. A judge or co
 ## Next
 
 - [ ] Reset real scores by judge or for a whole round from the screen (testing mode, its banner and the test-score reset are done)
-- [ ] Live report refresh while judges submit
+- [x] Live updates over Server-Sent Events: overview, judges, reports and the judge sheet update without reloading
 - [ ] One-click backup from the Admin screen

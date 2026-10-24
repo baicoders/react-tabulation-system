@@ -2,6 +2,7 @@ import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { pictureUrls } from '../lib/images';
+import { publish } from '../lib/live';
 import { requireRole } from '../middleware/auth';
 
 // Everything a judge does: see the open rounds, score candidates, submit a category.
@@ -137,6 +138,7 @@ judgeRouter.put('/judge/votes', async (req, res) => {
       create: { pairId: pair.id, judgeId, winnerId: body.winnerId, isTest: round.event.testingMode },
       update: { winnerId: body.winnerId, isTest: round.event.testingMode },
     });
+    publish(req.user!.eventId!, { type: 'votes', roundId: round.id });
     res.json({ saved: true, savedAt: new Date().toISOString() });
   } catch (err) {
     send(res, err);
@@ -151,6 +153,7 @@ judgeRouter.post('/judge/rounds/:roundId/submit-votes', async (req, res) => {
     if (round.pairs.length === 0) throw new HttpError(409, 'The pairs are not set yet');
     if (voted < round.pairs.length) throw new HttpError(409, `${round.pairs.length - voted} pairs still need your vote`);
     await prisma.pairVote.updateMany({ where: { judgeId, pair: { roundId: round.id } }, data: { status: 'SUBMITTED' } });
+    publish(req.user!.eventId!, { type: 'votes', roundId: round.id });
     res.json({ submitted: voted });
   } catch (err) {
     send(res, err);
@@ -249,6 +252,7 @@ judgeRouter.put('/judge/scores', async (req, res) => {
             });
       }),
     );
+    publish(req.user!.eventId!, { type: 'scores', roundId: category.roundId });
     res.json({ saved: body.scores.length, savedAt: new Date().toISOString() });
   } catch (err) {
     send(res, err);
@@ -266,6 +270,7 @@ judgeRouter.post('/judge/categories/:categoryId/submit', async (req, res) => {
     const required = criterionIds.length * category.round._count.entries;
     if (scored < required) throw new HttpError(409, `${required - scored} scores are still missing`);
     await prisma.score.updateMany({ where, data: { status: 'SUBMITTED' } });
+    publish(req.user!.eventId!, { type: 'scores', roundId: category.roundId });
     res.json({ submitted: scored });
   } catch (err) {
     send(res, err);

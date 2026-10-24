@@ -8,6 +8,7 @@ import { candidatesRouter } from './routes/candidates';
 import { eventsRouter } from './routes/events';
 import { importRouter } from './routes/import';
 import { judgeRouter } from './routes/judge';
+import { liveRouter } from './routes/live';
 import { reportsRouter } from './routes/reports';
 import { roundsRouter } from './routes/rounds';
 import { setupRouter } from './routes/setup';
@@ -26,6 +27,8 @@ export function createApp() {
   app.use('/api/auth', authRouter);
   // Candidates first: eventsRouter is admin only and would block judges from /api/events/:id/candidates.
   app.use('/api', candidatesRouter);
+  // Live updates before eventsRouter, which is admin only: judges listen too.
+  app.use('/api', liveRouter);
   app.use('/api', judgeRouter);
   app.use('/api', roundsRouter);
   app.use('/api', reportsRouter);

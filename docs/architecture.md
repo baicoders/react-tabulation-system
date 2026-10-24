@@ -32,3 +32,16 @@ Roles are checked on the server for every route (`requireRole` in `apps/api/src/
 - **The scoring engine is pure.** `apps/api/src/scoring` has no database access, so every rule has a unit test.
 - **The server does the heavy work.** Paging, filtering, ranking and image resizing happen on the server, so client PCs stay fast even if they are old.
 - **Offline first.** No CDN or external service is needed during the event.
+
+## Live updates
+
+Screens update without reloading the page. When something changes in an event (a judge saves a score, the tabulator closes a round), the API pushes a short notice over Server-Sent Events to every screen open on that event, and each screen fetches only the data it shows:
+
+| Screen | Updates live when |
+| --- | --- |
+| Event overview | A judge saves or submits, votes come in, a round opens or closes. Shows "Live, updated <time>" |
+| Judges | Submissions and assignment changes |
+| Reports | Any change; the old table stays on screen until the new numbers arrive |
+| Judge's score sheet | A round opens or closes, testing mode changes, or the tabulator lets the judge change scores |
+
+If the connection drops, the overview says "Reconnecting" and asks for fresh data every 15 seconds until the stream is back. The stream lives in one API process (an in-memory event bus), which fits one server PC.

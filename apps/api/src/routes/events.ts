@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { deleteCandidatePicture } from '../lib/images';
+import { publish } from '../lib/live';
 import { prisma } from '../lib/prisma';
 import { requireRole } from '../middleware/auth';
 
@@ -51,7 +52,9 @@ eventsRouter.patch('/:id', async (req, res) => {
     const live = await prisma.event.findFirst({ where: { status: 'ACTIVE', id: { not: eventId } } });
     if (live) return res.status(409).json({ error: `${live.name} is live. Finish it before making another event live.` });
   }
-  res.json(await prisma.event.update({ where: { id: eventId }, data }));
+  const updated = await prisma.event.update({ where: { id: eventId }, data });
+  publish(eventId, { type: 'event' });
+  res.json(updated);
 });
 
 eventsRouter.delete('/:id', async (req, res) => {
