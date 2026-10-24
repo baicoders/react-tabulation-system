@@ -6,6 +6,8 @@ import { UPLOADS_DIR } from './lib/images';
 import { authRouter } from './routes/auth';
 import { candidatesRouter } from './routes/candidates';
 import { eventsRouter } from './routes/events';
+import { judgeRouter } from './routes/judge';
+import { roundsRouter } from './routes/rounds';
 import { setupRouter } from './routes/setup';
 
 export function createApp() {
@@ -22,6 +24,8 @@ export function createApp() {
   app.use('/api/auth', authRouter);
   // Candidates first: eventsRouter is admin only and would block judges from /api/events/:id/candidates.
   app.use('/api', candidatesRouter);
+  app.use('/api', judgeRouter);
+  app.use('/api', roundsRouter);
   app.use('/api/events', eventsRouter);
   // Admin-only setup routes. Mounted last because its admin check covers every /api path it sees.
   app.use('/api', setupRouter);

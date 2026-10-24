@@ -50,7 +50,8 @@ async function main() {
           data: {
             eventId: event.id,
             number: number++,
-            name: `${FIRST[(i + h * 7) % FIRST.length]} ${LAST[(i * 3 + h) % LAST.length]}`,
+            // 20 first names x 10 last names, shifted per house, so all 60 names are different.
+            name: `${FIRST[i]} ${LAST[(i + h * 3) % LAST.length]}`,
             groupValues: { create: [{ groupValueId: houseValue.id }, { groupValueId: levelValue.id }] },
           },
         }),

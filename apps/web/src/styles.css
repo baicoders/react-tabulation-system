@@ -229,12 +229,6 @@ select.input { border-color: var(--control); }
 .segmented button { flex: 1; height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
 .segmented button[aria-pressed='true'] { background: var(--surface); color: var(--text); font-weight: 500; }
 
-/* ---------- judge score sheet ---------- */
-.judge { padding: var(--pad); }
-.judge-head { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
-.judge-head .end { margin-left: auto; }
-.judge td input { width: 84px; height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-control); text-align: right; font-variant-numeric: tabular-nums; }
-.judge td input[aria-invalid='true'] { border-color: var(--negative); }
 
 /* ---------- phone and tablet: the frame disappears, the sheet becomes the screen ---------- */
 .menu-toggle { display: none; }
@@ -270,3 +264,17 @@ select.input { border-color: var(--control); }
 /* Row-level remove links stay grey; red is kept for the one destructive action per object. */
 .link-btn.quiet { color: var(--muted); font-weight: 400; }
 .link-btn.quiet:hover { color: var(--negative); }
+
+/* ---------- judge score sheet: the frame is a top bar only, the sheet takes the width ---------- */
+.judge-app { min-height: 100svh; display: grid; grid-template-rows: var(--topbar) minmax(0, 1fr); }
+.judge-bar { display: flex; align-items: center; gap: 16px; padding: 0 16px; min-width: 0; }
+.judge-bar .spacer { flex: 1; }
+.judge-sheet { margin: 0 var(--sheet-inset) var(--sheet-inset); }
+th .sub { display: block; font-size: 11px; color: var(--faint); }
+.judge-sheet td input { width: 76px; height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); text-align: right; font-variant-numeric: tabular-nums; }
+.judge-sheet td input:disabled { background: var(--raised); color: var(--text); }
+.judge-sheet td input[aria-invalid='true'] { border-color: var(--negative); }
+@media (max-width: 860px) { .judge-sheet { margin: 0; } }
+
+/* The round that is ready to open next: pale teal, so the next step stands out from the closed rounds. */
+.rung[data-state='ready'] .rung-bar, .swatch.ready { background: var(--accent-pale); border: 1px solid var(--accent); }

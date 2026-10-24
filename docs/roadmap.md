@@ -22,15 +22,19 @@
 - [x] Judges with password set by the Admin
 - [x] Demo seed shaped like Hara ng ACLC Ormoc 2026 (`npm run seed:demo -w apps/api`)
 
+## Done (judging)
+
+- [x] Score API: debounced draft auto-save, range checks, submit and lock per category
+- [x] Judge score sheet on the API: paginated, totals out of 100 per row, testing shortcuts that save
+- [x] Open a round, live judge progress and standings (refresh every 5 seconds), close with Top N and tie check, reopen
+- [x] Let a judge change submitted scores; delete test scores
+
 ## Next
 
+- [ ] Pair-vote round screen (Deba Teh) with live tally; until then a pair-vote round cannot be closed
 - [ ] Assign judges to some categories only (the API supports it; the screen gives every judge every category)
 - [ ] Bulk import from CSV and Excel with preview, plus pictures from a ZIP matched by file name
-- [ ] Score API: draft auto-save (debounced), submit and lock per category
-- [ ] Wire the judge score sheet to the API, with testing mode from the event
-- [ ] Pair-vote round screen (e.g. Deba Teh) with live tally
 - [ ] Deduction rules and deductions screen
-- [ ] Close round: rank, show Top N and ties, confirm who advances
 - [ ] Reports: by candidate, judge, category and overall, split by any group; PDF and Excel export
 - [ ] Testing mode banner and score reset (all, by category, by judge, test only) with audit log
 - [ ] Live report refresh while judges submit

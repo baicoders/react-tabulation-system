@@ -143,4 +143,4 @@ All names, houses, criteria and weights in it are sample data.
 
 ## Status
 
-Working today: login; the admin screens for events, the event overview with its cut ladder, candidates (photos, groups, pagination), groups, rounds and criteria, and judges; the scoring engine; and a sample judge score sheet. Scoring, closing rounds and reports come next. See the [roadmap](docs/roadmap.md) and the [design notes](docs/design.md).
+Working today: login; the admin screens for events, the event overview with its cut ladder, candidates (photos, groups, pagination), groups, rounds and criteria, and judges; judges scoring with auto-save and submit; and opening, watching and closing rounds so the Top N move on. Pair-vote rounds, deductions and reports come next. See the [roadmap](docs/roadmap.md) and the [design notes](docs/design.md).

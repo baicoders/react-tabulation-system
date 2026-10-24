@@ -88,6 +88,32 @@ List response:
 
 Weights are percents (0 to 100) or `null` for equal weights. `carryOverWeight` is a share from 0 to 1. Decimal columns are returned as numbers.
 
+## Judging (judge)
+
+All scoped to the judge's own event and to categories assigned to them, in rounds that are open.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/judge/sheet` | `{ event, judge, rounds: [{ id, name, entries, categories: [{ id, name, criteria, scored, required, submitted }] }] }` |
+| GET | `/judge/categories/:categoryId/candidates` | Candidates in the round, paginated (`page`, `pageSize` up to 100, `q`), each with this judge's `scores` by criterion id, plus `locked` |
+| PUT | `/judge/scores` | `{ categoryId, scores: [{ candidateId, criterionId, points }] }` saves drafts; `points: null` clears one. Values outside a criterion's range are refused. `409` after the category is submitted |
+| POST | `/judge/categories/:categoryId/submit` | Locks the category; `409` with the number still missing if any score is empty |
+
+Scores given while testing mode is on are saved with `isTest: true`.
+
+## Running rounds (admin)
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/rounds/:id/tabulation` | Judges' progress, `complete`, standings from submitted scores, `advancingIds` and `tieAtCutLine` |
+| POST | `/rounds/:id/open` | Fills the round (every candidate for the first round, the advanced ones after that) and opens it. One open round at a time |
+| POST | `/rounds/:id/close` | `{ includeTies? }`. Needs every judge submitted. `409` with `tie` when candidates share the rank at the cut line; send `includeTies: true` to send them all on. Saves each entry's score, rank and `advanced`, and fills the next round |
+| POST | `/rounds/:id/reopen` | Clears the results and empties the next round, if it has not started |
+| POST | `/rounds/:id/judges/:judgeId/unlock` | Lets one judge change their submitted scores in the round |
+| POST | `/rounds/:id/reset-scores` | `{ testOnly? }` (default true). Not allowed on a closed round |
+
+Opening, closing, reopening, unlocking and resets are written to the audit log.
+
 ## Coming next
 
-Scores, pair votes, deductions, closing a round, reports and bulk import. See the [roadmap](roadmap.md).
+Pair-vote rounds, deductions screen, reports and bulk import. See the [roadmap](roadmap.md).

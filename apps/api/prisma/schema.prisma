@@ -146,6 +146,9 @@ model RoundEntry {
   roundId     Int
   candidateId Int
   advanced    Boolean?
+  // Filled when the round closes: the final score (after carry-over and deductions) and the rank.
+  score       Decimal?  @db.Decimal(10, 4)
+  rank        Int?
   round       Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
   candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
 

@@ -15,9 +15,23 @@ There is no official tabulation standard, so each round picks its rules from the
 | Advance count | Top N go to the next round | Everyone |
 | Tie-break | Shared rank, category score, count of first places, Admin decides | Shared rank |
 
+## A judge's total
+
+Every judge total is out of 100, so rounds with different point ranges compare fairly:
+
+```text
+criterion part = points / max points * criterion share
+category score = sum of its criterion parts            (out of 100)
+judge total    = sum of category score * category share, over the categories the judge scored
+```
+
+A share is the weight in percent, or an equal split when no weights are set. With Poise 40%, Delivery 30% and Confidence 30% on a 1 to 10 scale, scores of 2, 9 and 7 give 8 + 27 + 21 = 56. Only submitted scores count. Test scores count only while testing mode is on.
+
+The code is `apps/api/src/lib/tabulate.ts`; the judge screen shows the same total per row.
+
 ## Average of raw scores
 
-Each judge's criterion points are summed (weighted when weights are set) into a judge total. The candidate's score is the average of the judge totals. Higher wins.
+The candidate's score is the average of the judge totals. Higher wins.
 
 ## Rank-sum
 
