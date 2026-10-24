@@ -6,6 +6,7 @@ import { UPLOADS_DIR } from './lib/images';
 import { authRouter } from './routes/auth';
 import { candidatesRouter } from './routes/candidates';
 import { eventsRouter } from './routes/events';
+import { setupRouter } from './routes/setup';
 
 export function createApp() {
   const app = express();
@@ -22,6 +23,8 @@ export function createApp() {
   // Candidates first: eventsRouter is admin only and would block judges from /api/events/:id/candidates.
   app.use('/api', candidatesRouter);
   app.use('/api/events', eventsRouter);
+  // Admin-only setup routes. Mounted last because its admin check covers every /api path it sees.
+  app.use('/api', setupRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });

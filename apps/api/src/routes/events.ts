@@ -18,14 +18,20 @@ const eventSchema = z.object({
 
 const idParam = z.coerce.number().int().positive();
 
+const counts = { _count: { select: { candidates: true, judges: true, rounds: true } } };
+
 eventsRouter.get('/', async (_req, res) => {
-  res.json(await prisma.event.findMany({ orderBy: { createdAt: 'desc' } }));
+  res.json(await prisma.event.findMany({ orderBy: [{ date: 'desc' }, { createdAt: 'desc' }], include: counts }));
 });
 
 eventsRouter.get('/:id', async (req, res) => {
   const event = await prisma.event.findUnique({
     where: { id: idParam.parse(req.params.id) },
-    include: { rounds: { orderBy: { order: 'asc' } }, groups: { include: { values: true } } },
+    include: {
+      ...counts,
+      rounds: { orderBy: { order: 'asc' }, include: { _count: { select: { entries: true, categories: true } } } },
+      groups: { orderBy: { id: 'asc' }, include: { values: { orderBy: { id: 'asc' }, include: { _count: { select: { candidates: true } } } } } },
+    },
   });
   if (!event) return res.status(404).json({ error: 'Event not found' });
   res.json(event);

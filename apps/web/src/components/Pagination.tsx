@@ -28,7 +28,7 @@ export function Pagination({ page, pageSize, total, onPageChange, onPageSizeChan
 
   return (
     <nav className="pagination" aria-label="Pages">
-      <span className="muted">
+      <span className="range">
         {from}-{to} of {total}
       </span>
       <button onClick={() => onPageChange(page - 1)} disabled={page <= 1} aria-label="Previous page">

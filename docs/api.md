@@ -59,6 +59,35 @@ List response:
 }
 ```
 
+## Event setup (admin)
+
+`GET /events` and `GET /events/:id` include `_count` of candidates, judges and rounds. `GET /events/:id` also includes the rounds (with entry counts) and groups (with candidate counts per value).
+
+| Method | Path | Body |
+| --- | --- | --- |
+| GET | `/events/:eventId/groups` | |
+| POST | `/events/:eventId/groups` | `{ name, values?: string[] }` |
+| PATCH | `/groups/:id` | `{ name }` |
+| DELETE | `/groups/:id` | |
+| POST | `/groups/:id/values` | `{ name }` |
+| DELETE | `/group-values/:id` | |
+| GET | `/events/:eventId/rounds` | Rounds in order, with categories and criteria |
+| POST | `/events/:eventId/rounds` | `{ name, kind?, scoreMethod?, advanceCount?, carryOverWeight?, dropExtremes?, tieBreak? }`; order is set to the end |
+| PATCH | `/rounds/:id` | Any field from POST |
+| DELETE | `/rounds/:id` | |
+| POST | `/rounds/:id/categories` | `{ name, weight? }` |
+| PATCH | `/categories/:id` | `{ name?, weight? }` |
+| DELETE | `/categories/:id` | |
+| POST | `/categories/:id/criteria` | `{ name, minPoints, maxPoints, weight? }`; max must be above min |
+| PATCH | `/criteria/:id` | Any field from POST |
+| DELETE | `/criteria/:id` | |
+| GET | `/events/:eventId/judges` | `[{ id, name, categoryIds, submittedScores }]` |
+| POST | `/events/:eventId/judges` | `{ name, password, categoryIds? }`; password at least 4 characters, stored hashed |
+| PATCH | `/judges/:id` | `{ name?, password?, categoryIds? }` |
+| DELETE | `/judges/:id` | |
+
+Weights are percents (0 to 100) or `null` for equal weights. `carryOverWeight` is a share from 0 to 1. Decimal columns are returned as numbers.
+
 ## Coming next
 
-Rounds, categories, criteria, judges, scores, pair votes, deductions, reports and bulk import. See the [roadmap](roadmap.md).
+Scores, pair votes, deductions, closing a round, reports and bulk import. See the [roadmap](roadmap.md).

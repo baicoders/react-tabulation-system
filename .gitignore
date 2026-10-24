@@ -12,3 +12,7 @@ backups/
 Thumbs.db
 .vscode/
 .idea/
+
+# taste-skill screenshots (direction.json is kept as the art direction record)
+.taste-skill/*
+!.taste-skill/direction.json

@@ -122,8 +122,25 @@ docker-compose.dev.yml development stack with hot reload
 - [API reference](docs/api.md)
 - [Deployment and event day](docs/deployment.md)
 - [Development guide](docs/development.md)
+- [Design](docs/design.md)
 - [Roadmap](docs/roadmap.md)
+
+## Demo data
+
+Load a sample event shaped like Hara ng ACLC Ormoc 2026 (60 candidates in 3 houses and 2 levels, 6 rounds, 5 judges with password `judge1234`):
+
+```bash
+npm run seed:demo -w apps/api
+```
+
+In the Docker dev stack:
+
+```bash
+docker compose -f docker-compose.dev.yml exec app npm run seed:demo -w apps/api
+```
+
+All names, houses, criteria and weights in it are sample data.
 
 ## Status
 
-Early scaffold. Working today: login, events, candidates with picture upload and pagination, the scoring engine, and a sample judge score sheet. See the [roadmap](docs/roadmap.md) for what comes next.
+Working today: login; the admin screens for events, the event overview with its cut ladder, candidates (photos, groups, pagination), groups, rounds and criteria, and judges; the scoring engine; and a sample judge score sheet. Scoring, closing rounds and reports come next. See the [roadmap](docs/roadmap.md) and the [design notes](docs/design.md).

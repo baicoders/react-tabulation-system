@@ -119,8 +119,8 @@ export function ScoreSheetPage() {
         <span className="muted">
           Scored {scored} of {candidates.length}
         </span>
-        {testingMode && <span className="badge">TEST MODE: Shift + J random, Shift + P perfect</span>}
-        <button onClick={logout}>Log out</button>
+        {testingMode && <span className="pill warn">Testing mode: Shift + J fills random scores, Shift + P fills perfect scores</span>}
+        <button className="btn end" onClick={logout}>Log out</button>
       </header>
       <table>
         <thead>
