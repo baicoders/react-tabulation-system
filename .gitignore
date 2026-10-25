@@ -19,3 +19,7 @@ Thumbs.db
 
 # Hallmark audit screenshots and records
 .hallmark/
+
+# Playwright output
+e2e/report/
+e2e/test-results/

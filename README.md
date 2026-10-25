@@ -8,6 +8,19 @@ The flow is kept simple: **judges input scores, the system calculates, the admin
 
 **Product requirements:** [docs/PRD.md](docs/PRD.md) covers the goals, roles, scoring rules, reports, the first event (Hara ng ACLC Ormoc 2026) as an example configuration, and the open questions.
 
+## Preview
+
+| | |
+| --- | --- |
+| ![Admin overview with live standings](docs/screenshots/18-overview-all-submitted.png) | ![Judge score sheet](docs/screenshots/15-judge-sheet-typing.png) |
+| **Admin overview**: live standings and who has submitted, no page reload. | **Judge score sheet**: totals out of 100 as scores are typed. |
+| ![Pair vote](docs/screenshots/22-judge-pair-voted.png) | ![Overall ranking report](docs/screenshots/25-report-overall.png) |
+| **Pair vote**: the judge picks a winner in each pair. | **Reports**: overall ranking with titles, print or Excel. |
+| ![Candidates with photos](docs/screenshots/05-candidates.png) | ![Rounds and criteria](docs/screenshots/10-rounds.png) |
+| **Candidates**: paginated, searchable, with photos. | **Rounds and criteria**: cut-offs, points and weights. |
+
+All screens, taken by the Playwright end-to-end test: [docs/screenshots.md](docs/screenshots.md).
+
 ## Features
 
 - **Admin**: manage events, candidates (with pictures), rounds, categories, criteria and judges; bulk import from CSV or Excel; reports by candidate, judge, category and overall.
@@ -242,6 +255,7 @@ More detail: [docs/development.md](docs/development.md).
 | `npm run dev` | API and web together with hot reload |
 | `npm run build` | Production build of both apps |
 | `npm test` | Scoring engine unit tests |
+| `cd e2e && npx playwright test` | End-to-end test of a running stack, refreshes the screenshots ([e2e/README.md](e2e/README.md)) |
 | `npm run typecheck` | TypeScript checks for both apps |
 | `npm run db:migrate -w apps/api` | Create a migration after editing `schema.prisma` |
 | `npm run db:deploy -w apps/api` | Apply migrations |
@@ -260,7 +274,8 @@ apps/
     src/pages/         login, admin screens, judge score sheet
     src/components/    Pagination, CandidatePhoto
     src/hooks/         usePaginated, useDebounced, useAutoInputShortcuts
-docs/                  architecture, scoring, performance, deployment, API
+e2e/                   Playwright end-to-end tests
+docs/                  architecture, scoring, performance, deployment, API, screenshots
 docker-compose.yml     production stack for the event server
 docker-compose.dev.yml development stack with hot reload
 ```
@@ -268,6 +283,7 @@ docker-compose.dev.yml development stack with hot reload
 ## Documentation
 
 - [Product requirements (PRD)](docs/PRD.md)
+- [Screenshots and end-to-end test](docs/screenshots.md)
 - [Architecture](docs/architecture.md)
 - [Data model](docs/data-model.md)
 - [Scoring methods](docs/scoring.md)
