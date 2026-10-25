@@ -1,8 +1,8 @@
-# React Tabulation System
+# ACLC Ormoc Tabulation System
 
-A general, web-based tabulation system for pageants and contests. Judges score candidates from their own PCs over the venue LAN, and the server computes rankings and reports as soon as scores come in.
+The tabulation system of ACLC College of Ormoc City for its pageants and contests. Judges score candidates from their own PCs over the campus LAN, and the server computes rankings and reports as soon as scores come in. Hara ng ACLC Ormoc 2026 is the first event run on it.
 
-Nothing is hardcoded to one pageant. Each event sets its own rounds, cut-offs (Top N), candidate groups, criteria and scoring method.
+Nothing is hardcoded to one event. Each event sets its own rounds, cut-offs (Top N), candidate groups, criteria and scoring method. The school's name, seal and colour are set once in **Settings** and appear on every screen and every event's printed reports. The software itself is called Tally, and another school could run it with its own branding.
 
 The flow is kept simple: **judges input scores, the system calculates, the admin shows the report.**
 
@@ -29,7 +29,7 @@ All screens, taken by the Playwright end-to-end test: [docs/screenshots.md](docs
 - **Built for large fields**: server-side pagination, debounced search, WebP thumbnails, lazy-loaded images and memoized score rows keep screens smooth with hundreds of candidates. See [docs/performance.md](docs/performance.md).
 - **Testing mode**: rehearse with fake scores. Judges get `Shift + J` (random scores) and `Shift + P` (perfect scores) shortcuts, and **Start over** clears the rehearsal.
 - **Go live / Finish event**: judges can log in only to the one live event.
-- **Branding per event**: the organization's logo, name and colour on the login page, judges' screens and the letterhead of every printed report.
+- **School branding**: the school's seal, name and colour, set once in Settings, on the login page, every screen, the browser tab and the letterhead of every printed report.
 - **Runs offline**: one server PC runs everything in Docker; client PCs only need a browser.
 
 ## Tech stack

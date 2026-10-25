@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { deleteCandidatePicture, deleteEventLogo, saveEventLogo, withLogo } from '../lib/images';
+import { deleteCandidatePicture } from '../lib/images';
 import { publish } from '../lib/live';
 import { prisma } from '../lib/prisma';
-import { MAX_PHOTO_MB, imageUpload } from '../lib/upload';
 import { requireRole } from '../middleware/auth';
 
 // Events CRUD. The other admin resources (candidates, rounds, criteria, judges) follow this same pattern.
@@ -15,9 +14,6 @@ const eventSchema = z.object({
   name: z.string().min(1),
   date: z.coerce.date().optional(),
   venue: z.string().optional(),
-  organization: z.string().trim().max(120).nullable().optional(),
-  // A hex colour like #03053e, used for the accent rule on printouts and the event mark.
-  brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a colour like #03053e').nullable().optional(),
   status: z.enum(['DRAFT', 'ACTIVE', 'CLOSED']).optional(),
   testingMode: z.boolean().optional(),
 });
@@ -27,8 +23,7 @@ const idParam = z.coerce.number().int().positive();
 const counts = { _count: { select: { candidates: true, judges: true, rounds: true } } };
 
 eventsRouter.get('/', async (_req, res) => {
-  const events = await prisma.event.findMany({ orderBy: [{ date: 'desc' }, { createdAt: 'desc' }], include: counts });
-  res.json(events.map(withLogo));
+  res.json(await prisma.event.findMany({ orderBy: [{ date: 'desc' }, { createdAt: 'desc' }], include: counts }));
 });
 
 eventsRouter.get('/:id', async (req, res) => {
@@ -41,12 +36,12 @@ eventsRouter.get('/:id', async (req, res) => {
     },
   });
   if (!event) return res.status(404).json({ error: 'Event not found' });
-  res.json(withLogo(event));
+  res.json(event);
 });
 
 eventsRouter.post('/', async (req, res) => {
   const data = eventSchema.parse(req.body);
-  res.status(201).json(withLogo(await prisma.event.create({ data })));
+  res.status(201).json(await prisma.event.create({ data }));
 });
 
 eventsRouter.patch('/:id', async (req, res) => {
@@ -59,34 +54,13 @@ eventsRouter.patch('/:id', async (req, res) => {
   }
   const updated = await prisma.event.update({ where: { id: eventId }, data });
   publish(eventId, { type: 'event' });
-  res.json(withLogo(updated));
-});
-
-eventsRouter.post('/:id/logo', imageUpload.single('logo'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: `Upload a JPG, PNG or WebP image up to ${MAX_PHOTO_MB} MB` });
-  const eventId = idParam.parse(req.params.id);
-  const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId }, select: { logoPath: true } });
-  const logoPath = await saveEventLogo(eventId, req.file.buffer);
-  const updated = await prisma.event.update({ where: { id: eventId }, data: { logoPath } });
-  await deleteEventLogo(event.logoPath);
-  publish(eventId, { type: 'event' });
-  res.json(withLogo(updated));
-});
-
-eventsRouter.delete('/:id/logo', async (req, res) => {
-  const eventId = idParam.parse(req.params.id);
-  const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId }, select: { logoPath: true } });
-  const updated = await prisma.event.update({ where: { id: eventId }, data: { logoPath: null } });
-  await deleteEventLogo(event.logoPath);
-  publish(eventId, { type: 'event' });
-  res.json(withLogo(updated));
+  res.json(updated);
 });
 
 eventsRouter.delete('/:id', async (req, res) => {
   const eventId = idParam.parse(req.params.id);
   const pictures = await prisma.candidate.findMany({ where: { eventId, picturePath: { not: null } }, select: { picturePath: true } });
-  const { logoPath } = await prisma.event.delete({ where: { id: eventId } });
-  await deleteEventLogo(logoPath);
+  await prisma.event.delete({ where: { id: eventId } });
   // The database cascade removes the candidates; their photo files go too.
   await Promise.all(pictures.map((p) => deleteCandidatePicture(p.picturePath)));
   res.status(204).end();

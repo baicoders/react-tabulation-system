@@ -10,7 +10,7 @@ The demo data is made up, and the candidate photos are drawn placeholders upload
 
 | Test | What it checks |
 | --- | --- |
-| Branding | Organization, colour and logo saved on Event details; a bad colour is refused; the logo shows on the login page, the judge's screen, the menu and the browser tab; afterwards the event's own branding is put back |
+| Settings | System name, organization, colour and logo saved in Settings; a bad colour is refused; they show on the login page, the menu, the judge's screen and the browser tab; event details save; afterwards the real branding is put back |
 | Login | Judge and admin login, a wrong password shows an error |
 | Events | The list, status tabs, search, creating an event |
 | Import | A CSV of 6 candidates previews, imports, and appears in the list |
@@ -35,14 +35,14 @@ It uses the installed Chrome (set `PW_CHANNEL=msedge` for Edge) and `http://loca
 
 ## Branding
 
-Each event has its own organization name, logo and colour, set on **Event details**. They show on the login page, the judges' screens, the menu, the browser tab and the letterhead of every printed report, and head every Excel export. The pictures use a made-up crest; the running event uses the real school's logo.
+The school's name, seal and colour are set once in **Settings** and appear on the login page, every screen, the browser tab and the letterhead of every event's printed reports, and head every Excel export. The pictures use a made-up crest; the running system uses the ACLC College of Ormoc City seal.
 
 | | |
 | --- | --- |
-| ![Event details](screenshots/33-event-details-branding.png) | ![Branded login](screenshots/34-login-branded.png) |
-| Event details: name, organization, date, venue, colour and logo. | Judges see the live event's logo and name before logging in. |
+| ![Settings](screenshots/33-settings-branding.png) | ![Branded login](screenshots/34-login-branded.png) |
+| Settings: system name, organization, color and logo. | Judges see the school's seal and the live event before logging in. |
 | ![Printed report](screenshots/25b-report-printed.png) | |
-| A printed report opens with the event's letterhead. | |
+| A printed report opens with the school's letterhead and the event under it. | |
 
 ## Logging in
 

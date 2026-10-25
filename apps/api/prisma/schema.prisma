@@ -53,23 +53,19 @@ model AdminUser {
 }
 
 model Event {
-  id           Int         @id @default(autoincrement())
-  name         String
-  date         DateTime?
-  venue        String?
-  /// Branding: the organisation running the event, its logo and colour, on screens and printouts.
-  organization String?
-  logoPath     String?
-  brandColor   String?
-  status       EventStatus @default(DRAFT)
-  testingMode  Boolean     @default(false)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  groups       Group[]
-  candidates   Candidate[]
-  rounds       Round[]
-  judges       Judge[]
-  auditLogs    AuditLog[]
+  id          Int         @id @default(autoincrement())
+  name        String
+  date        DateTime?
+  venue       String?
+  status      EventStatus @default(DRAFT)
+  testingMode Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  groups      Group[]
+  candidates  Candidate[]
+  rounds      Round[]
+  judges      Judge[]
+  auditLogs   AuditLog[]
 }
 
 // An admin-defined way to group candidates, e.g. "Type", "House", "Level".
@@ -259,4 +255,15 @@ model AuditLog {
   event     Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
   @@index([eventId])
+}
+
+/// One row (id 1): the system's identity. The name, organization, logo and colour of the school running it,
+/// shown on every screen and printed report, for every event.
+model Settings {
+  id           Int      @id @default(1)
+  appName      String   @default("Tally")
+  organization String?
+  logoPath     String?
+  brandColor   String?
+  updatedAt    DateTime @default(now()) @updatedAt
 }

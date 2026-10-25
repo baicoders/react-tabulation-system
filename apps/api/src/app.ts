@@ -3,8 +3,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import cors from 'cors';
 import multer from 'multer';
 import { ZodError } from 'zod';
-import { UPLOADS_DIR, withLogo } from './lib/images';
-import { prisma } from './lib/prisma';
+import { UPLOADS_DIR } from './lib/images';
 import { MAX_PHOTO_MB } from './lib/upload';
 import { authRouter } from './routes/auth';
 import { candidatesRouter } from './routes/candidates';
@@ -14,6 +13,7 @@ import { judgeRouter } from './routes/judge';
 import { liveRouter } from './routes/live';
 import { reportsRouter } from './routes/reports';
 import { roundsRouter } from './routes/rounds';
+import { settingsRouter } from './routes/settings';
 import { setupRouter } from './routes/setup';
 
 export function createApp() {
@@ -27,14 +27,8 @@ export function createApp() {
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
-  // The live event's name and logo for the login page, before anyone logs in. Nothing else is exposed.
-  app.get('/api/branding', async (_req, res) => {
-    const live = await prisma.event.findFirst({
-      where: { status: 'ACTIVE' },
-      select: { name: true, organization: true, logoPath: true, brandColor: true, date: true, venue: true },
-    });
-    res.json(live ? withLogo(live) : null);
-  });
+  // Branding first: GET /api/branding is public, for the login page.
+  app.use('/api', settingsRouter);
   app.use('/api/auth', authRouter);
   // Candidates first: eventsRouter is admin only and would block judges from /api/events/:id/candidates.
   app.use('/api', candidatesRouter);

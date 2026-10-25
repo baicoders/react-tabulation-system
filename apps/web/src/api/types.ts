@@ -11,10 +11,6 @@ export interface EventListItem {
   venue: string | null;
   status: EventStatus;
   testingMode: boolean;
-  /** Branding, set on the Event details screen. */
-  organization: string | null;
-  logoUrl: string | null;
-  brandColor: string | null;
   _count: { candidates: number; judges: number; rounds: number };
 }
 
@@ -86,12 +82,11 @@ export const TIE_LABEL: Record<TieBreak, string> = {
   ADMIN_DECIDES: 'Admin decides',
 };
 
-/** The live event's public branding, for the login page. */
+/** The system's identity from Settings, plus the live event, public for the login page. */
 export interface Branding {
-  name: string;
+  appName: string;
   organization: string | null;
   logoUrl: string | null;
   brandColor: string | null;
-  date: string | null;
-  venue: string | null;
+  liveEvent: { name: string; date: string | null; venue: string | null } | null;
 }

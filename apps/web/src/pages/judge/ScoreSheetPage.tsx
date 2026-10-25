@@ -3,7 +3,7 @@ import { api } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
 import { CandidatePhoto } from '../../components/CandidatePhoto';
 import { Pagination } from '../../components/Pagination';
-import { EventLogo, useEventFavicon } from '../../components/EventLogo';
+import { BrandLogo } from '../../components/BrandLogo';
 import { useAutoInputShortcuts } from '../../hooks/useAutoInputShortcuts';
 import { useDebounced } from '../../hooks/useDebounced';
 import { usePaginated } from '../../hooks/usePaginated';
@@ -29,7 +29,7 @@ interface SheetCategory {
 }
 
 interface Sheet {
-  event: { id: number; name: string; testingMode: boolean; organization: string | null; logoUrl: string | null; brandColor: string | null };
+  event: { id: number; name: string; testingMode: boolean };
   judge: { id: number; name: string };
   rounds: { id: number; name: string; entries: number; categories: SheetCategory[] }[];
   pairRounds: PairRound[];
@@ -112,7 +112,6 @@ const ScoreRow = memo(function ScoreRow({ row, criteria, edits, locked, onChange
 export function ScoreSheetPage() {
   const { user, logout } = useAuth();
   const sheet = useResource<Sheet>('/judge/sheet');
-  useEventFavicon(sheet.data?.event.logoUrl);
   // The tabulator opening or closing a round, toggling testing mode or letting this judge change scores
   // arrives as a live notice, so the sheet updates without the judge pressing anything.
   const refreshSheet = useDebouncedCallback(() => sheet.reload());
@@ -252,8 +251,8 @@ export function ScoreSheetPage() {
     <div className="judge-app">
       <header className="judge-bar">
         <span className="brand" style={{ margin: 0, minWidth: 0 }}>
-          <EventLogo src={sheet.data?.event.logoUrl} name={sheet.data?.event.organization ?? sheet.data?.event.name} size={28} />
-          <span className="event-name">{sheet.data?.event.name ?? 'Tally'}</span>
+          <BrandLogo size={28} />
+          <span className="event-name">{sheet.data?.event.name ?? ''}</span>
         </span>
         <span className="spacer" />
         {testingMode && <span className="pill warn">Testing mode</span>}

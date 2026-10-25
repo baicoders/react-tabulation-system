@@ -21,8 +21,8 @@ test.describe.configure({ mode: 'serial' });
 let admin: Api;
 let eventId: number;
 let rounds: { id: number; name: string; kind: string; status: string }[];
-// The demo's own branding before the run, put back afterwards so the running app keeps its real logo.
-let savedBranding: { organization: string | null; brandColor: string | null; logo: Buffer | null };
+// The system's own branding before the run, put back afterwards so the running app keeps its real logo.
+let savedBranding: { appName: string; organization: string | null; brandColor: string | null; logo: Buffer | null };
 
 const roundId = (name: string) => rounds.find((r) => r.name === name)!.id;
 
@@ -54,10 +54,12 @@ test.beforeAll(async () => {
   const demo = events.find((e: any) => e.name.includes('(demo)'));
   expect(demo, 'run the demo seed first: docker compose exec api node dist/seed-demo.js').toBeTruthy();
   eventId = demo.id;
+  const branding = await (await fetch(`${BASE}/api/branding`)).json();
   savedBranding = {
-    organization: demo.organization,
-    brandColor: demo.brandColor,
-    logo: demo.logoUrl ? Buffer.from(await (await fetch(BASE + demo.logoUrl)).arrayBuffer()) : null,
+    appName: branding.appName,
+    organization: branding.organization,
+    brandColor: branding.brandColor,
+    logo: branding.logoUrl ? Buffer.from(await (await fetch(BASE + branding.logoUrl)).arrayBuffer()) : null,
   };
   // Repeatable runs: clear the demo's scores, open its first round, drop the event an earlier run created.
   for (const e of events.filter((e: any) => e.name === 'Sample Pageant (e2e)')) await admin.call(`/events/${e.id}`, 'DELETE');
@@ -68,13 +70,14 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await admin.call(`/events/${eventId}`, 'PATCH', { organization: savedBranding.organization, brandColor: savedBranding.brandColor });
-  if (savedBranding.logo) {
+  const { logo, ...fields } = savedBranding;
+  await admin.call('/settings', 'PATCH', fields);
+  if (logo) {
     const form = new FormData();
-    form.append('logo', new Blob([savedBranding.logo], { type: 'image/png' }), 'logo.png');
-    await admin.call(`/events/${eventId}/logo`, 'POST', undefined, form);
+    form.append('logo', new Blob([logo], { type: 'image/png' }), 'logo.png');
+    await admin.call('/settings/logo', 'POST', undefined, form);
   } else {
-    await admin.call(`/events/${eventId}/logo`, 'DELETE');
+    await admin.call('/settings/logo', 'DELETE');
   }
 });
 
@@ -94,13 +97,14 @@ async function sampleLogo(page: Page): Promise<Buffer> {
   return page.locator('#l').screenshot({ omitBackground: true });
 }
 
-test('event details: branding on the login page, judge screens and menu', async ({ browser }) => {
+test('settings: the school name, logo and color on every screen', async ({ browser }) => {
   const page = await adminPage(browser);
-  await page.goto(`/admin/events/${eventId}/details`);
-  await expect(page.getByRole('heading', { name: 'Event details' })).toBeVisible();
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+  await page.getByLabel('System name').fill('Sample College Tabulation');
   await page.getByLabel('Organization').fill('Sample College of the Philippines');
   await page.getByLabel('Brand color hex').fill('#1d2a6b');
-  await page.getByRole('button', { name: 'Save details' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
 
   const scratch = await page.context().newPage();
@@ -108,23 +112,33 @@ test('event details: branding on the login page, judge screens and menu', async 
   await scratch.close();
   await page.locator('input[type=file]').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: logo });
   await expect(page.getByText('This is the logo now.')).toBeVisible();
-  // The menu shows the logo beside the event's name.
-  await expect(page.locator('.sidebar .event-label img')).toBeVisible();
-  await shot(page, '33-event-details-branding');
+  // The menu and the browser tab carry the school's logo and name.
+  await expect(page.locator('.sidebar .brand img.brand-logo')).toBeVisible();
+  await expect(page.locator('.sidebar .brand')).toContainText('Sample College Tabulation');
+  await expect(page).toHaveTitle('Sample College Tabulation');
+  expect(await page.evaluate(() => document.querySelector<HTMLLinkElement>('link[rel=icon]')!.href)).toContain('/uploads/branding/');
+  await shot(page, '33-settings-branding');
 
   // A colour that is not a hex code is stopped by the form and refused by the API.
   await page.getByLabel('Brand color hex').fill('navy');
   expect(await page.getByLabel('Brand color hex').evaluate((el: HTMLInputElement) => el.validity.valid)).toBe(false);
-  expect((await admin.call(`/events/${eventId}`, 'PATCH', { brandColor: 'navy' })).status).toBe(400);
+  expect((await admin.call('/settings', 'PATCH', { brandColor: 'navy' })).status).toBe(400);
+
+  // Event details keep each event's own name, date and venue.
+  await page.goto(`/admin/events/${eventId}/details`);
+  await expect(page.getByLabel('Event name')).toHaveValue(/\(demo\)/);
+  await page.getByLabel('Venue').fill('ACLC College of Ormoc gymnasium');
+  await page.getByRole('button', { name: 'Save details' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
 
   const judge = await newPage(browser);
   await judge.goto('/login');
   await expect(judge.getByText('Sample College of the Philippines')).toBeVisible();
   await expect(judge.getByRole('img', { name: /logo/ })).toBeVisible();
+  await expect(judge.locator('.live-event')).toContainText('(demo)');
   await shot(judge, '34-login-branded');
   await loginUi(judge, 'judge', 'Marites Uy', JUDGE_PASSWORD);
-  await expect(judge.locator('.judge-bar img.event-logo')).toBeVisible();
-  expect(await judge.evaluate(() => document.querySelector<HTMLLinkElement>('link[rel=icon]')!.href)).toContain('/uploads/events/');
+  await expect(judge.locator('.judge-bar img.brand-logo')).toBeVisible();
   await judge.context().close();
   await page.context().close();
 });

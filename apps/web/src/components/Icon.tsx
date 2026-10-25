@@ -7,7 +7,8 @@ const PATHS = {
   rounds: 'M4 5h16M7 10h10M10 15h4M11 20h2',
   judges: 'M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z',
   reports: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6',
-  details: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4',
+  settings: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4',
+  details: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01',
   menu: 'M4 7h16M4 12h16M4 17h16',
   logout: 'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10',
 } as const;

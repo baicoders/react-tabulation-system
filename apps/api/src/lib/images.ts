@@ -41,12 +41,12 @@ export function pictureUrls(base: string | null) {
 const LOGO_SIZE = 512;
 
 /**
- * Saves an event logo as a PNG that fits in 512 x 512. PNG, not WebP, so it stays crisp and keeps its
- * transparency in printouts and spreadsheets. Like candidate photos, a new name per upload keeps caching safe.
+ * Saves the system logo as a PNG that fits in 512 x 512. PNG, not WebP, so it stays crisp and keeps its
+ * transparency in printouts. Like candidate photos, a new name per upload keeps caching safe.
  */
-export async function saveEventLogo(eventId: number, input: Buffer): Promise<string> {
-  await fs.mkdir(path.join(UPLOADS_DIR, 'events'), { recursive: true });
-  const file = `events/${eventId}-logo-${Date.now()}.png`;
+export async function saveLogo(input: Buffer): Promise<string> {
+  await fs.mkdir(path.join(UPLOADS_DIR, 'branding'), { recursive: true });
+  const file = `branding/logo-${Date.now()}.png`;
   await sharp(input)
     .rotate()
     .resize({ width: LOGO_SIZE, height: LOGO_SIZE, fit: 'inside', withoutEnlargement: true })
@@ -55,11 +55,11 @@ export async function saveEventLogo(eventId: number, input: Buffer): Promise<str
   return file;
 }
 
-export async function deleteEventLogo(file: string | null): Promise<void> {
+export async function deleteLogo(file: string | null): Promise<void> {
   if (file) await fs.rm(path.join(UPLOADS_DIR, file), { force: true });
 }
 
-/** The event as the client sees it: the stored logo path becomes a URL. */
+/** As the client sees it: the stored logo path becomes a URL. */
 export function withLogo<T extends { logoPath: string | null }>(event: T) {
   const { logoPath, ...rest } = event;
   return { ...rest, logoUrl: logoPath ? `/uploads/${logoPath}` : null };

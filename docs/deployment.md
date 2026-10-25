@@ -41,7 +41,7 @@ The whole night is three steps: **judges input scores, the system calculates, th
 ### The day before: set up
 
 - [ ] Create the event (date, venue).
-- [ ] **Event details**: the organization's name, its logo (a square PNG with a transparent background prints best) and its colour. Print one report to check the letterhead.
+- [ ] Once per install, **Settings**: the system name, the school's full name, its seal (a square PNG with a transparent background prints best) and its colour. Print one report to check the letterhead.
 - [ ] Groups: for example House and Level.
 - [ ] Candidates: Import, then Download template, fill it in, import it, then the photo ZIP. Check the count and the photos.
 - [ ] Rounds in order with their Top N, and each round's criteria. Every round must show "Weights add up to 100%".

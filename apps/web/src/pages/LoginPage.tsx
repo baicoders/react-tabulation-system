@@ -1,10 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, type Role } from '../auth/AuthContext';
-import { api } from '../api/client';
-import type { Branding } from '../api/types';
-import { EventLogo, useEventFavicon } from '../components/EventLogo';
-import { TallyMark } from '../components/TallyMark';
+import { useBranding } from '../branding/BrandingContext';
+import { BrandLogo } from '../components/BrandLogo';
+import { formatDate } from '../lib/format';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -14,12 +13,9 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // The live event's name and logo, so judges know they are in the right place.
-  const [branding, setBranding] = useState<Branding | null>(null);
-  useEffect(() => {
-    api<Branding | null>('/branding').then(setBranding, () => setBranding(null));
-  }, []);
-  useEventFavicon(branding?.logoUrl);
+  // The school's name and logo, and the live event, so judges know they are in the right place.
+  const { branding } = useBranding();
+  const live = branding.liveEvent;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -38,17 +34,19 @@ export function LoginPage() {
   return (
     <main className="login">
       <form className="login-card" onSubmit={onSubmit}>
-        {branding ? (
-          <div className="login-event">
-            {branding.logoUrl && <EventLogo src={branding.logoUrl} name={branding.organization ?? branding.name} size={88} />}
-            <span className="event-name">{branding.name}</span>
-            {branding.organization && <span className="org">{branding.organization}</span>}
-          </div>
-        ) : (
-          <div className="brand">
-            <TallyMark />
-            Tally
-          </div>
+        <div className="login-brand">
+          <BrandLogo size={branding.logoUrl ? 88 : 32} />
+          <span className="app-name">{branding.appName}</span>
+          {branding.organization && <span className="org">{branding.organization}</span>}
+        </div>
+        {live && (
+          <p className="live-event">
+            <span className="pill pos">Live</span>
+            <span>
+              <strong>{live.name}</strong>
+              {(live.date || live.venue) && <span className="sub">{[live.date ? formatDate(live.date) : null, live.venue].filter(Boolean).join(', ')}</span>}
+            </span>
+          </p>
         )}
         <h1>Log in to score</h1>
         <div className="segmented" role="group" aria-label="Log in as">
@@ -70,12 +68,6 @@ export function LoginPage() {
         <button type="submit" className="btn primary" style={{ height: 40 }} disabled={busy}>
           {busy ? 'Logging in…' : 'Log in'}
         </button>
-        {branding && (
-          <span className="powered">
-            <TallyMark size={14} />
-            Tabulated with Tally
-          </span>
-        )}
       </form>
     </main>
   );

@@ -1,10 +1,10 @@
-# Tabulation System PRD
+# ACLC Ormoc Tabulation System PRD
 
-Product requirements for Tally, the general tabulation system. Last updated Oct 25, 2026.
+Product requirements for the ACLC College of Ormoc City tabulation system (the software is called Tally). Last updated Oct 25, 2026.
 
 ## Overview
 
-The Tabulation System is a web app that lets judges score candidates from their own PCs and gives the admin final rankings right after the last score is in. It replaces hand tallies and shared spreadsheets at pageants and contests, where math errors and late results are the usual problems. It is general: each pageant configures its own rounds, cut-offs, candidate groups, criteria and scoring method, with no code changes. The flow stays simple: judges input scores, the system calculates, the admin shows the report.
+The ACLC Ormoc Tabulation System is the school's web app for scoring its pageants and contests: judges score candidates from their own PCs and the admin gets final rankings right after the last score is in. It replaces hand tallies and shared spreadsheets, where math errors and late results are the usual problems. It runs every ACLC Ormoc event, not one pageant: each event configures its own rounds, cut-offs, candidate groups, criteria and scoring method, with no code changes. The school's seal, name and colour are set once and brand every screen and printout. The flow stays simple: judges input scores, the system calculates, the admin shows the report.
 
 **Goals**
 
@@ -19,11 +19,11 @@ The Tabulation System is a web app that lets judges score candidates from their 
 - Internet hosting; the system runs on a local server PC.
 - Payments, ticketing or candidate self-registration.
 
-**What keeps it generic.** Anything specific to one pageant is either an admin setting for that event (its rounds, cuts, criteria, groups) or handled on paper by the organizers (eligibility, permits, deductions). It is never written into the code. The test for any new request: would a different pageant need it, set up differently? Then it is a setting. Does it only make sense for one pageant? Then it stays on paper.
+**What keeps it general across events.** Anything specific to one event is either an admin setting for that event (its rounds, cuts, criteria, groups) or handled on paper by the organizers (eligibility, permits, deductions). It is never written into the code. The test for any new request: would a different pageant need it, set up differently? Then it is a setting. Does it only make sense for one pageant? Then it stays on paper.
 
 ## Example configuration: Hara ng ACLC Ormoc 2026
 
-*Hara ng ACLC Ormoc: Queen of All Nations 2026* is the first event and a good test of the general design: it uses elimination rounds, candidate groups and a pair-vote round. It is held in celebration of United Nations Month, on the theme "Breaking Barriers, Embracing Diversity, and Celebrating the Beauty of Authenticity, Equality, and Pride Across All Nations". Everything below is set up for this event by the Admin as data; none of it is built in.
+*Hara ng ACLC Ormoc: Queen of All Nations 2026* is one pageant event, the first run on the system, and a good test of the general design: it uses elimination rounds, candidate groups and a pair-vote round. It is held in celebration of United Nations Month, on the theme "Breaking Barriers, Embracing Diversity, and Celebrating the Beauty of Authenticity, Equality, and Pride Across All Nations". Everything below is set up for this event by the Admin as data; none of it is built in.
 
 **Candidates.** Each House enters 20 candidates: 10 from Senior High School and 10 from College. In the system, House and Level are just two admin-defined candidate groups; another pageant might group by Barangay or School, or not at all.
 

@@ -1,10 +1,10 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import type { EventDetail, EventListItem } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
-import { EventLogo, useEventFavicon } from '../../components/EventLogo';
+import { useBranding } from '../../branding/BrandingContext';
+import { BrandLogo } from '../../components/BrandLogo';
 import { Icon, type IconName } from '../../components/Icon';
-import { TallyMark } from '../../components/TallyMark';
 import { useResource } from '../../hooks/useResource';
 
 export interface AdminContext {
@@ -34,11 +34,10 @@ export function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { branding } = useBranding();
   const events = useResource<EventListItem[]>('/events');
   const event = useResource<EventDetail>(eventId ? `/events/${eventId}` : null);
   const current = eventId && event.data?.id === Number(eventId) ? event.data : null;
-
-  useEventFavicon(current?.logoUrl);
 
   // Close the phone menu after navigating.
   useEffect(() => setMenuOpen(false), [location.pathname]);
@@ -55,11 +54,11 @@ export function AdminLayout() {
   };
 
   return (
-    <div className="app" style={current?.brandColor ? ({ '--brand': current.brandColor } as CSSProperties) : undefined}>
+    <div className="app">
       <aside className={menuOpen ? 'sidebar open' : 'sidebar'} aria-label="Main">
         <div className="brand">
-          <TallyMark />
-          Tally
+          <BrandLogo size={28} />
+          <span className="app-name">{branding.appName}</span>
           <button className="btn ghost menu-toggle" style={{ marginLeft: 'auto' }} onClick={() => setMenuOpen(false)}>
             Close
           </button>
@@ -69,11 +68,14 @@ export function AdminLayout() {
             <Icon name="events" />
             All events
           </NavLink>
+          <NavLink className="nav-item" to="/admin/settings">
+            <Icon name="settings" />
+            Settings
+          </NavLink>
           {eventId && (
             <>
-              <div className="event-label" title={current?.name}>
-                {current?.logoUrl && <EventLogo src={current.logoUrl} size={24} />}
-                <span>{current?.name ?? 'Loading event…'}</span>
+              <div className="group-label" title={current?.name}>
+                {current?.name ?? 'Loading event…'}
               </div>
               {EVENT_NAV.map((item) => (
                 <NavLink key={item.label} className="nav-item" to={`/admin/events/${eventId}${item.to ? `/${item.to}` : ''}`} end={item.end}>
