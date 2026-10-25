@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
-import { pictureUrls } from '../lib/images';
+import { pictureUrls, withLogo } from '../lib/images';
 import { publish } from '../lib/live';
 import { requireRole } from '../middleware/auth';
 
@@ -46,7 +46,12 @@ async function submittedCount(judgeId: number, criterionIds: number[]) {
 
 judgeRouter.get('/judge/sheet', async (req, res) => {
   const judgeId = req.user!.id;
-  const event = await prisma.event.findUniqueOrThrow({ where: { id: req.user!.eventId! }, select: { id: true, name: true, testingMode: true } });
+  const event = withLogo(
+    await prisma.event.findUniqueOrThrow({
+      where: { id: req.user!.eventId! },
+      select: { id: true, name: true, testingMode: true, organization: true, logoPath: true, brandColor: true },
+    }),
+  );
   const rounds = await prisma.round.findMany({
     where: { eventId: event.id, status: 'OPEN', kind: 'SCORED' },
     orderBy: { order: 'asc' },

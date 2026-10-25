@@ -6,10 +6,11 @@ The demo data is made up, and the candidate photos are drawn placeholders upload
 
 ## Test result
 
-9 of 9 tests pass, in about 50 seconds:
+10 of 10 tests pass, in about a minute:
 
 | Test | What it checks |
 | --- | --- |
+| Branding | Organization, colour and logo saved on Event details; a bad colour is refused; the logo shows on the login page, the judge's screen, the menu and the browser tab; afterwards the event's own branding is put back |
 | Login | Judge and admin login, a wrong password shows an error |
 | Events | The list, status tabs, search, creating an event |
 | Import | A CSV of 6 candidates previews, imports, and appears in the list |
@@ -17,7 +18,7 @@ The demo data is made up, and the candidate photos are drawn placeholders upload
 | Setup | Groups, rounds and criteria, judges and their round assignments, the add-judge form |
 | Judging | Typing scores, the testing-mode fill shortcut across every page, submitting; the admin overview updates live without a reload; closing the round, including a tie at the cut-off |
 | Later rounds | Pairs set by rank, a judge votes in every pair and submits, the remaining rounds through the final |
-| Reports | Overall, by round, by candidate, by judge, filtered to one house, Excel download |
+| Reports | Overall, by round, by candidate, by judge, filtered to one house, the printed letterhead, Excel download |
 | Layouts | All four reports on a phone without sideways page scroll, print keeps every column, the phone menu, a judge on a tablet |
 
 Any script error in the app fails the test that caused it.
@@ -31,6 +32,17 @@ cd e2e && npm install && npx playwright test
 ```
 
 It uses the installed Chrome (set `PW_CHANNEL=msedge` for Edge) and `http://localhost:8090` (set `BASE_URL` for another address). The admin password comes from `ADMIN_PASSWORD` or the repo's `.env`. Each run starts the demo over, so it can be repeated. The HTML report lands in `e2e/report`.
+
+## Branding
+
+Each event has its own organization name, logo and colour, set on **Event details**. They show on the login page, the judges' screens, the menu, the browser tab and the letterhead of every printed report, and head every Excel export. The pictures use a made-up crest; the running event uses the real school's logo.
+
+| | |
+| --- | --- |
+| ![Event details](screenshots/33-event-details-branding.png) | ![Branded login](screenshots/34-login-branded.png) |
+| Event details: name, organization, date, venue, colour and logo. | Judges see the live event's logo and name before logging in. |
+| ![Printed report](screenshots/25b-report-printed.png) | |
+| A printed report opens with the event's letterhead. | |
 
 ## Logging in
 

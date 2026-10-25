@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import type { EventDetail, EventListItem } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
+import { EventLogo, useEventFavicon } from '../../components/EventLogo';
 import { Icon, type IconName } from '../../components/Icon';
 import { TallyMark } from '../../components/TallyMark';
 import { useResource } from '../../hooks/useResource';
@@ -24,6 +25,7 @@ const EVENT_NAV: { to: string; label: string; icon: IconName; end?: boolean }[] 
   { to: 'rounds', label: 'Rounds and criteria', icon: 'rounds' },
   { to: 'judges', label: 'Judges', icon: 'judges' },
   { to: 'reports', label: 'Reports', icon: 'reports' },
+  { to: 'details', label: 'Event details', icon: 'details' },
 ];
 
 export function AdminLayout() {
@@ -35,6 +37,8 @@ export function AdminLayout() {
   const events = useResource<EventListItem[]>('/events');
   const event = useResource<EventDetail>(eventId ? `/events/${eventId}` : null);
   const current = eventId && event.data?.id === Number(eventId) ? event.data : null;
+
+  useEventFavicon(current?.logoUrl);
 
   // Close the phone menu after navigating.
   useEffect(() => setMenuOpen(false), [location.pathname]);
@@ -51,7 +55,7 @@ export function AdminLayout() {
   };
 
   return (
-    <div className="app">
+    <div className="app" style={current?.brandColor ? ({ '--brand': current.brandColor } as CSSProperties) : undefined}>
       <aside className={menuOpen ? 'sidebar open' : 'sidebar'} aria-label="Main">
         <div className="brand">
           <TallyMark />
@@ -67,8 +71,9 @@ export function AdminLayout() {
           </NavLink>
           {eventId && (
             <>
-              <div className="group-label" title={current?.name}>
-                {current?.name ?? 'Loading event…'}
+              <div className="event-label" title={current?.name}>
+                {current?.logoUrl && <EventLogo src={current.logoUrl} size={24} />}
+                <span>{current?.name ?? 'Loading event…'}</span>
               </div>
               {EVENT_NAV.map((item) => (
                 <NavLink key={item.label} className="nav-item" to={`/admin/events/${eventId}${item.to ? `/${item.to}` : ''}`} end={item.end}>

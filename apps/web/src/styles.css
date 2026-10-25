@@ -196,6 +196,25 @@ select.input { border-color: var(--field); }
 .form-panel { padding: var(--card-pad); margin-bottom: var(--gap); border-radius: var(--radius-card); background: var(--raised); }
 .form-panel h2 { margin-bottom: 16px; }
 .form-actions { display: flex; flex-wrap: wrap; gap: 8px 12px; margin-top: 16px; }
+.form-grid { display: grid; gap: 16px; }
+.form-grid .form-actions { align-items: center; margin-top: 0; }
+.color-row { display: flex; align-items: center; gap: 12px; }
+.swatch { width: 38px; height: 38px; padding: 2px; border: 1px solid var(--field); border-radius: var(--radius-control); background: var(--surface); cursor: pointer; }
+
+/* ---------- event branding: the event's own logo and colour beside Tally's frame ---------- */
+.event-logo { object-fit: contain; flex: none; }
+.logo-well { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.logo-preview { display: grid; place-items: center; width: 128px; height: 128px; border-radius: var(--radius-sheet); background: var(--surface); }
+.logo-actions { display: grid; gap: 8px; }
+.logo-actions .form-actions { margin-top: 0; align-items: center; }
+.sidebar .event-label { display: flex; align-items: center; gap: 8px; margin: 20px 8px 8px; padding-left: 8px; border-left: 3px solid var(--brand, var(--border)); font-size: var(--fs-small); color: var(--muted); min-width: 0; }
+.sidebar .event-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.login-event { display: grid; justify-items: center; gap: 8px; text-align: center; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.login-event .event-name { font-weight: 600; font-size: 16px; line-height: 22px; text-wrap: balance; }
+.login-event .org { color: var(--muted); font-size: var(--fs-small); }
+.powered { display: flex; align-items: center; gap: 6px; color: var(--faint); font-size: var(--fs-small); }
+.judge-bar .event-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.print-brand { display: none; }
 
 .tabs { display: flex; flex-wrap: wrap; gap: 0 24px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
 .tabs button { position: relative; padding: 12px 0; border: 0; background: none; color: var(--muted); cursor: pointer; white-space: nowrap; }
@@ -323,7 +342,7 @@ th .sub { display: block; font-size: 11px; color: var(--faint); }
 /* On a phone, ranking tables keep place, candidate and score and move the rest to a line under the name;
    score grids keep every column and scroll sideways with the first column pinned. Screen only: A4 print is
    narrower than 860px too, and paper keeps every column. */
-.narrow-only { display: none; }
+.narrow-only, .report-table .narrow-only { display: none; }
 /* Grid items default to min-width: auto, which would let a wide score grid stretch the page. */
 .report-block { min-width: 0; }
 @media screen and (max-width: 860px) {
@@ -354,7 +373,12 @@ tr.titled td { background: var(--raised); }
   .sheet { margin: 0; border: 0; border-radius: 0; }
   .canvas { padding: 0; }
   .print-only { display: block; }
-  .report-event { font-weight: 600; font-size: 13px; }
+  .print-brand { display: flex; align-items: center; gap: 14px; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid var(--brand, var(--text)); }
+  .print-brand p { margin: 0; }
+  .print-brand .org { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .print-brand .event-name { font-size: 15px; font-weight: 600; line-height: 20px; }
+  .print-brand .when { font-size: 10px; color: var(--muted); }
+  .print-brand svg { width: 40px; height: 40px; }
   .report-title { font-size: 16px; }
   table { font-size: 11px; }
   td, th { padding: 4px 8px; }

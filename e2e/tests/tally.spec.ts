@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import {
   adminPassword,
+  BASE,
   Api,
   closeRound,
   JUDGE_PASSWORD,
@@ -20,6 +21,8 @@ test.describe.configure({ mode: 'serial' });
 let admin: Api;
 let eventId: number;
 let rounds: { id: number; name: string; kind: string; status: string }[];
+// The demo's own branding before the run, put back afterwards so the running app keeps its real logo.
+let savedBranding: { organization: string | null; brandColor: string | null; logo: Buffer | null };
 
 const roundId = (name: string) => rounds.find((r) => r.name === name)!.id;
 
@@ -51,12 +54,79 @@ test.beforeAll(async () => {
   const demo = events.find((e: any) => e.name.includes('(demo)'));
   expect(demo, 'run the demo seed first: docker compose exec api node dist/seed-demo.js').toBeTruthy();
   eventId = demo.id;
+  savedBranding = {
+    organization: demo.organization,
+    brandColor: demo.brandColor,
+    logo: demo.logoUrl ? Buffer.from(await (await fetch(BASE + demo.logoUrl)).arrayBuffer()) : null,
+  };
   // Repeatable runs: clear the demo's scores, open its first round, drop the event an earlier run created.
   for (const e of events.filter((e: any) => e.name === 'Sample Pageant (e2e)')) await admin.call(`/events/${e.id}`, 'DELETE');
   await admin.call(`/events/${eventId}`, 'PATCH', { testingMode: true });
   expect((await admin.call(`/events/${eventId}/start-over`, 'POST')).status).toBe(200);
   rounds = (await admin.call(`/events/${eventId}/rounds`)).data;
   expect((await admin.call(`/rounds/${roundId('Production Number')}/open`, 'POST')).status).toBe(200);
+});
+
+test.afterAll(async () => {
+  await admin.call(`/events/${eventId}`, 'PATCH', { organization: savedBranding.organization, brandColor: savedBranding.brandColor });
+  if (savedBranding.logo) {
+    const form = new FormData();
+    form.append('logo', new Blob([savedBranding.logo], { type: 'image/png' }), 'logo.png');
+    await admin.call(`/events/${eventId}/logo`, 'POST', undefined, form);
+  } else {
+    await admin.call(`/events/${eventId}/logo`, 'DELETE');
+  }
+});
+
+/** A made-up crest for the screenshots: the docs show how branding looks without using a real school's logo. */
+async function sampleLogo(page: Page): Promise<Buffer> {
+  await page.setContent(`
+    <body style="margin:0;background:transparent">
+      <svg id="l" width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="256" cy="256" r="250" fill="#1d2a6b"/>
+        <circle cx="256" cy="256" r="170" fill="#ffffff"/>
+        <path d="M256 120 L316 236 L256 392 L196 236 Z" fill="#c8102e"/>
+        <path d="M256 120 L276 236 L256 392 L236 236 Z" fill="#e8475c"/>
+        <text x="256" y="72" text-anchor="middle" font-family="Georgia, serif" font-size="40" fill="#ffffff" letter-spacing="6">SAMPLE</text>
+        <text x="256" y="470" text-anchor="middle" font-family="Georgia, serif" font-size="34" fill="#ffffff" letter-spacing="6">EST. 2000</text>
+      </svg>
+    </body>`);
+  return page.locator('#l').screenshot({ omitBackground: true });
+}
+
+test('event details: branding on the login page, judge screens and menu', async ({ browser }) => {
+  const page = await adminPage(browser);
+  await page.goto(`/admin/events/${eventId}/details`);
+  await expect(page.getByRole('heading', { name: 'Event details' })).toBeVisible();
+  await page.getByLabel('Organization').fill('Sample College of the Philippines');
+  await page.getByLabel('Brand color hex').fill('#1d2a6b');
+  await page.getByRole('button', { name: 'Save details' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
+
+  const scratch = await page.context().newPage();
+  const logo = await sampleLogo(scratch);
+  await scratch.close();
+  await page.locator('input[type=file]').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: logo });
+  await expect(page.getByText('This is the logo now.')).toBeVisible();
+  // The menu shows the logo beside the event's name.
+  await expect(page.locator('.sidebar .event-label img')).toBeVisible();
+  await shot(page, '33-event-details-branding');
+
+  // A colour that is not a hex code is stopped by the form and refused by the API.
+  await page.getByLabel('Brand color hex').fill('navy');
+  expect(await page.getByLabel('Brand color hex').evaluate((el: HTMLInputElement) => el.validity.valid)).toBe(false);
+  expect((await admin.call(`/events/${eventId}`, 'PATCH', { brandColor: 'navy' })).status).toBe(400);
+
+  const judge = await newPage(browser);
+  await judge.goto('/login');
+  await expect(judge.getByText('Sample College of the Philippines')).toBeVisible();
+  await expect(judge.getByRole('img', { name: /logo/ })).toBeVisible();
+  await shot(judge, '34-login-branded');
+  await loginUi(judge, 'judge', 'Marites Uy', JUDGE_PASSWORD);
+  await expect(judge.locator('.judge-bar img.event-logo')).toBeVisible();
+  expect(await judge.evaluate(() => document.querySelector<HTMLLinkElement>('link[rel=icon]')!.href)).toContain('/uploads/events/');
+  await judge.context().close();
+  await page.context().close();
 });
 
 test('login: judge and admin, wrong password', async ({ browser }) => {
@@ -291,7 +361,17 @@ test('reports: overall, by round, by candidate, by judge, split by group, Excel'
   await page.goto(`/admin/events/${eventId}/reports`);
   await expect(page.getByRole('heading', { name: 'Overall ranking', level: 2 })).toBeVisible();
   await expect(page.locator('table tbody tr').first()).toBeVisible();
+  // Phone-only lines stay hidden on a desktop.
+  await expect(page.locator('.narrow-only').first()).toBeHidden();
   await shot(page, '25-report-overall');
+
+  // On paper: the letterhead with the logo, organization, event, date and venue.
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.locator('.print-brand')).toBeVisible();
+  await expect(page.locator('.print-brand')).toContainText('Sample College of the Philippines');
+  await expect(page.locator('.narrow-only').first()).toBeHidden();
+  await shot(page, '25b-report-printed');
+  await page.emulateMedia({ media: 'screen' });
 
   const views: [string, string, string | null][] = [
     ['By round', '26-report-round', null],

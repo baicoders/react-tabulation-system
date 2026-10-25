@@ -53,19 +53,23 @@ model AdminUser {
 }
 
 model Event {
-  id          Int         @id @default(autoincrement())
-  name        String
-  date        DateTime?
-  venue       String?
-  status      EventStatus @default(DRAFT)
-  testingMode Boolean     @default(false)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  groups      Group[]
-  candidates  Candidate[]
-  rounds      Round[]
-  judges      Judge[]
-  auditLogs   AuditLog[]
+  id           Int         @id @default(autoincrement())
+  name         String
+  date         DateTime?
+  venue        String?
+  /// Branding: the organisation running the event, its logo and colour, on screens and printouts.
+  organization String?
+  logoPath     String?
+  brandColor   String?
+  status       EventStatus @default(DRAFT)
+  testingMode  Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  groups       Group[]
+  candidates   Candidate[]
+  rounds       Round[]
+  judges       Judge[]
+  auditLogs    AuditLog[]
 }
 
 // An admin-defined way to group candidates, e.g. "Type", "House", "Level".

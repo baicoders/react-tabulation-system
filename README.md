@@ -29,6 +29,7 @@ All screens, taken by the Playwright end-to-end test: [docs/screenshots.md](docs
 - **Built for large fields**: server-side pagination, debounced search, WebP thumbnails, lazy-loaded images and memoized score rows keep screens smooth with hundreds of candidates. See [docs/performance.md](docs/performance.md).
 - **Testing mode**: rehearse with fake scores. Judges get `Shift + J` (random scores) and `Shift + P` (perfect scores) shortcuts, and **Start over** clears the rehearsal.
 - **Go live / Finish event**: judges can log in only to the one live event.
+- **Branding per event**: the organization's logo, name and colour on the login page, judges' screens and the letterhead of every printed report.
 - **Runs offline**: one server PC runs everything in Docker; client PCs only need a browser.
 
 ## Tech stack

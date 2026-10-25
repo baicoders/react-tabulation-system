@@ -11,6 +11,10 @@ export interface EventListItem {
   venue: string | null;
   status: EventStatus;
   testingMode: boolean;
+  /** Branding, set on the Event details screen. */
+  organization: string | null;
+  logoUrl: string | null;
+  brandColor: string | null;
   _count: { candidates: number; judges: number; rounds: number };
 }
 
@@ -81,3 +85,13 @@ export const TIE_LABEL: Record<TieBreak, string> = {
   FIRST_PLACE_COUNT: 'More first places',
   ADMIN_DECIDES: 'Admin decides',
 };
+
+/** The live event's public branding, for the login page. */
+export interface Branding {
+  name: string;
+  organization: string | null;
+  logoUrl: string | null;
+  brandColor: string | null;
+  date: string | null;
+  venue: string | null;
+}

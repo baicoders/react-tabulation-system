@@ -1,10 +1,11 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import type { EventDetail, Group } from '../../api/types';
 import { CandidatePhoto } from '../../components/CandidatePhoto';
+import { EventLogo } from '../../components/EventLogo';
 import { useDebounced } from '../../hooks/useDebounced';
 import { useResource } from '../../hooks/useResource';
 import { downloadExcel, type Cell } from '../../lib/exportExcel';
-import { formatDateTime } from '../../lib/format';
+import { formatDate, formatDateTime } from '../../lib/format';
 
 interface ViewProps {
   event: EventDetail;
@@ -52,7 +53,7 @@ function GroupSelect({ groups, value, onChange }: { groups: Group[]; value: stri
   );
 }
 
-/** The report's own heading: on screen with Print and Excel, on paper with the event and when it was printed. */
+/** The report's own heading: on screen with Print and Excel, on paper under the event's letterhead. */
 function ReportHead({ event, title, sub, controls, onExcel, disabled }: { event: EventDetail; title: string; sub?: ReactNode; controls?: ReactNode; onExcel: () => void; disabled?: boolean }) {
   return (
     <>
@@ -67,16 +68,33 @@ function ReportHead({ event, title, sub, controls, onExcel, disabled }: { event:
         </button>
       </div>
       <header className="report-head">
-        <p className="print-only report-event">
-          {event.name}
-          {event.venue ? `, ${event.venue}` : ''}
-        </p>
+        <Letterhead event={event} />
         <h2 className="report-title">{title}</h2>
         {sub && <p className="muted">{sub}</p>}
         <p className="print-only meta">Printed {formatDateTime(new Date().toISOString())}</p>
       </header>
     </>
   );
+}
+
+/** Printed reports open with the event's logo, organization, name, date and venue over a rule in its colour. */
+function Letterhead({ event }: { event: EventDetail }) {
+  const when = [event.date ? formatDate(event.date) : null, event.venue].filter(Boolean).join(', ');
+  return (
+    <div className="print-brand" style={event.brandColor ? ({ '--brand': event.brandColor } as CSSProperties) : undefined}>
+      <EventLogo src={event.logoUrl} name={event.organization ?? event.name} size={64} />
+      <div>
+        {event.organization && <p className="org">{event.organization}</p>}
+        <p className="event-name">{event.name}</p>
+        {when && <p className="when">{when}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** The first rows of every Excel export: who ran the event, the event, then the report's own lines. */
+function sheetMeta(event: EventDetail, ...lines: string[]) {
+  return [event.organization, event.name, ...lines].filter((l): l is string => Boolean(l));
 }
 
 /** Signature lines for printed results. */
@@ -135,7 +153,7 @@ export function OverallReport({ event, params, set, version }: ViewProps) {
     downloadExcel(`${event.name} ${title}`, 'Overall', [
       ['Place', 'Title', 'No.', 'Candidate', 'Groups', 'Furthest round', 'Rank in that round', 'Score there (votes in a pair round)'],
       ...d.rows.map((r): Cell[] => [r.position, r.title, r.candidate.number, r.candidate.name, groupNames(r.candidate), r.reached?.name ?? null, r.roundRank, r.score]),
-    ], [event.name, title, provisional ? `Provisional: ${d.finalRound!.name} is not closed` : 'Final']);
+    ], sheetMeta(event, title, provisional ? `Provisional: ${d.finalRound!.name} is not closed` : 'Final'));
   }
 
   return (
@@ -261,7 +279,7 @@ export function RoundReport({ event, params, set, version }: ViewProps) {
         ? [r.position, r.candidate.number, r.candidate.name, groupNames(r.candidate), r.pair ? `No. ${r.pair.opponent.number} ${r.pair.opponent.name}` : null, r.pair?.votesFor ?? null, r.pair?.votesAgainst ?? null, r.pair ? (r.pair.won ? 'Yes' : 'No') : null, r.advanced === null ? null : r.advanced ? 'Yes' : 'No']
         : [r.position, r.candidate.number, r.candidate.name, groupNames(r.candidate), ...d.categories.map((c) => r.categories[c.id]), r.score, r.advanced === null ? null : r.advanced ? 'Yes' : 'No'],
     );
-    downloadExcel(`${event.name} ${title}`, round!.name, [head, ...rows], [event.name, title, `${d.judgesSubmitted} of ${d.judges} judges submitted`]);
+    downloadExcel(`${event.name} ${title}`, round!.name, [head, ...rows], sheetMeta(event, title, `${d.judgesSubmitted} of ${d.judges} judges submitted`));
   }
 
   return (
@@ -397,7 +415,7 @@ export function CandidateReport({ event, params, set, version }: ViewProps) {
         }
       rows.push([r.name, 'Round result', `Rank ${r.rank ?? '-'}`, null, ...d.judges.map(() => null), r.score]);
     }
-    downloadExcel(`${event.name} ${title}`, 'Candidate', rows, [event.name, title, groupNames(d.candidate)]);
+    downloadExcel(`${event.name} ${title}`, 'Candidate', rows, sheetMeta(event, title, groupNames(d.candidate)));
   }
 
   return (
@@ -525,7 +543,7 @@ export function JudgeReport({ event, params, set, version }: ViewProps) {
         ? [r.candidate.number, r.candidate.name, r.vote === 'won' ? 'Picked' : r.vote === 'lost' ? 'Not picked' : null, r.submitted ? 'Yes' : 'No']
         : [r.candidate.number, r.candidate.name, ...d.criteria.map((c) => r.points[c.id] ?? null), r.total, r.submitted ? 'Yes' : 'No'],
     );
-    downloadExcel(`${event.name} ${title}`, 'Judge', [head, ...rows], [event.name, title]);
+    downloadExcel(`${event.name} ${title}`, 'Judge', [head, ...rows], sheetMeta(event, title));
   }
 
   const submitted = d?.rows.filter((r) => r.submitted).length ?? 0;

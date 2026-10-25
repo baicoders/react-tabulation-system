@@ -1,6 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, type Role } from '../auth/AuthContext';
+import { api } from '../api/client';
+import type { Branding } from '../api/types';
+import { EventLogo, useEventFavicon } from '../components/EventLogo';
 import { TallyMark } from '../components/TallyMark';
 
 export function LoginPage() {
@@ -11,6 +14,12 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The live event's name and logo, so judges know they are in the right place.
+  const [branding, setBranding] = useState<Branding | null>(null);
+  useEffect(() => {
+    api<Branding | null>('/branding').then(setBranding, () => setBranding(null));
+  }, []);
+  useEventFavicon(branding?.logoUrl);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -29,10 +38,18 @@ export function LoginPage() {
   return (
     <main className="login">
       <form className="login-card" onSubmit={onSubmit}>
-        <div className="brand">
-          <TallyMark />
-          Tally
-        </div>
+        {branding ? (
+          <div className="login-event">
+            {branding.logoUrl && <EventLogo src={branding.logoUrl} name={branding.organization ?? branding.name} size={88} />}
+            <span className="event-name">{branding.name}</span>
+            {branding.organization && <span className="org">{branding.organization}</span>}
+          </div>
+        ) : (
+          <div className="brand">
+            <TallyMark />
+            Tally
+          </div>
+        )}
         <h1>Log in to score</h1>
         <div className="segmented" role="group" aria-label="Log in as">
           {(['judge', 'admin'] as const).map((r) => (
@@ -53,6 +70,12 @@ export function LoginPage() {
         <button type="submit" className="btn primary" style={{ height: 40 }} disabled={busy}>
           {busy ? 'Logging in…' : 'Log in'}
         </button>
+        {branding && (
+          <span className="powered">
+            <TallyMark size={14} />
+            Tabulated with Tally
+          </span>
+        )}
       </form>
     </main>
   );

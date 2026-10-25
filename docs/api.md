@@ -9,6 +9,7 @@ Errors come back as `{ "error": "message" }`. Invalid input returns `400` with `
 | Method | Path | Auth | Response |
 | --- | --- | --- | --- |
 | GET | `/health` | None | `{ "status": "ok" }` |
+| GET | `/branding` | None | The live event's `{ name, organization, logoUrl, brandColor, date, venue }` for the login page, or `null` |
 
 ## Auth
 
@@ -25,9 +26,13 @@ Judges log in to the event whose status is `ACTIVE`. The username is the judge's
 | --- | --- | --- |
 | GET | `/events` | |
 | GET | `/events/:id` | Includes rounds and groups |
-| POST | `/events` | `{ name, date?, venue?, status?, testingMode? }` |
+| POST | `/events` | `{ name, date?, venue?, organization?, brandColor?, status?, testingMode? }`. `brandColor` is a hex colour like `#03053e` |
 | PATCH | `/events/:id` | Any field from POST. Setting `status` to `ACTIVE` (live) is refused while another event is live: judges log in to the one live event |
-| DELETE | `/events/:id` | |
+| DELETE | `/events/:id` | Also removes candidate photos and the logo |
+| POST | `/events/:id/logo` | `multipart/form-data`, field `logo`, JPG, PNG or WebP up to 25 MB. Saved as a PNG up to 512 x 512, transparency kept |
+| DELETE | `/events/:id/logo` | |
+
+Events come back with `logoUrl` (or `null`). The judge's `GET /judge/sheet` includes the event's `organization`, `logoUrl` and `brandColor`.
 
 ## Candidates
 

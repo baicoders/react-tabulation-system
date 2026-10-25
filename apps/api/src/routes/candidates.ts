@@ -1,21 +1,13 @@
 import { Router } from 'express';
-import multer from 'multer';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { deleteCandidatePicture, pictureUrls, saveCandidatePicture } from '../lib/images';
+import { MAX_PHOTO_MB, imageUpload as upload } from '../lib/upload';
 import { requireRole } from '../middleware/auth';
 
 export const candidatesRouter = Router();
 
-export const MAX_PHOTO_MB = 25;
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  // Phone photos run 3 to 15 MB; the server shrinks each one to a small WebP anyway.
-  limits: { fileSize: MAX_PHOTO_MB * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => cb(null, /^image\/(jpeg|png|webp)$/.test(file.mimetype)),
-});
 
 const id = z.coerce.number().int().positive();
 
