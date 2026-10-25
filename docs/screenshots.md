@@ -18,7 +18,7 @@ The demo data is made up, and the candidate photos are drawn placeholders upload
 | Judging | Typing scores, the testing-mode fill shortcut across every page, submitting; the admin overview updates live without a reload; closing the round, including a tie at the cut-off |
 | Later rounds | Pairs set by rank, a judge votes in every pair and submits, the remaining rounds through the final |
 | Reports | Overall, by round, by candidate, by judge, filtered to one house, Excel download |
-| Layouts | Phone report and menu, a judge on a tablet |
+| Layouts | All four reports on a phone without sideways page scroll, print keeps every column, the phone menu, a judge on a tablet |
 
 Any script error in the app fails the test that caused it.
 
@@ -107,5 +107,9 @@ It uses the installed Chrome (set `PW_CHANNEL=msedge` for Edge) and `http://loca
 
 | | | |
 | --- | --- | --- |
-| ![Phone report](screenshots/30-phone-report.png) | ![Phone menu](screenshots/31-phone-menu.png) | ![Tablet judge](screenshots/32-tablet-judge-no-round.png) |
-| Reports on a phone. | The menu on a phone. | A judge on a tablet between rounds. |
+| ![Phone report](screenshots/30-phone-report.png) | ![Phone report by round](screenshots/30b-phone-report-round.png) | ![Phone report by candidate](screenshots/30c-phone-report-candidate.png) |
+| Overall ranking on a phone: place, candidate and score, with the number and furthest round under the name. | By round on a phone. | By candidate: the score grid scrolls sideways with the criterion column pinned. |
+| ![Phone report by judge](screenshots/30d-phone-report-judge.png) | ![Phone menu](screenshots/31-phone-menu.png) | ![Tablet judge](screenshots/32-tablet-judge-no-round.png) |
+| By judge on a phone. | The menu on a phone. | A judge on a tablet between rounds. |
+
+Printed reports keep every column; the phone layout applies to screens only. The test checks both, and that no report makes the phone page scroll sideways.

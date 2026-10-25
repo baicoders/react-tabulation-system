@@ -325,6 +325,32 @@ test('phone and tablet layouts', async ({ browser }) => {
   await phone.goto(`/admin/events/${eventId}/reports`);
   await expect(phone.locator('table tbody tr').first()).toBeVisible();
   await shot(phone, '30-phone-report');
+  // Ranking tables fit the phone; no column pushes the page sideways.
+  expect(await phone.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  const wrap = phone.locator('.table-wrap').first();
+  expect(await wrap.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+
+  const phoneViews: [string, string, string | null][] = [
+    ['By round', '30b-phone-report-round', null],
+    ['By candidate', '30c-phone-report-candidate', 'Candidate'],
+    ['By judge', '30d-phone-report-judge', 'Judge'],
+  ];
+  for (const [tab, file, pick] of phoneViews) {
+    await phone.getByRole('tab', { name: tab }).click();
+    if (pick) await phone.getByRole('combobox', { name: pick, exact: true }).selectOption({ index: 1 });
+    await expect(phone.locator('table tbody tr').first()).toBeVisible();
+    await shot(phone, file);
+    // Wide score grids scroll inside their box, never the page.
+    expect(await phone.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  }
+
+  // Printing keeps every column, even though A4 is narrower than the phone breakpoint.
+  await phone.getByRole('tab', { name: 'Overall ranking' }).click();
+  await phone.emulateMedia({ media: 'print' });
+  await expect(phone.getByRole('columnheader', { name: 'Furthest round' })).toBeVisible();
+  await phone.emulateMedia({ media: 'screen' });
+  await expect(phone.getByRole('columnheader', { name: 'Furthest round' })).toBeHidden();
+
   await phone.getByRole('button', { name: 'Open menu' }).click();
   await shot(phone, '31-phone-menu');
   await phone.context().close();

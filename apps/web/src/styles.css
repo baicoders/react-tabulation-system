@@ -320,6 +320,23 @@ th .sub { display: block; font-size: 11px; color: var(--faint); }
 .report-title { font-size: 18px; line-height: 24px; font-weight: 600; }
 .report-head .muted { margin-top: 4px; }
 .report-block .section-title { margin-bottom: 8px; }
+/* On a phone, ranking tables keep place, candidate and score and move the rest to a line under the name;
+   score grids keep every column and scroll sideways with the first column pinned. Screen only: A4 print is
+   narrower than 860px too, and paper keeps every column. */
+.narrow-only { display: none; }
+/* Grid items default to min-width: auto, which would let a wide score grid stretch the page. */
+.report-block { min-width: 0; }
+@media screen and (max-width: 860px) {
+  .report-table .wide-only { display: none; }
+  .report-table .narrow-only { display: block; }
+  .report-table th, .report-table td { padding-left: 8px; padding-right: 8px; }
+  .report-table th:first-child, .report-table td:first-child { padding-left: 0; }
+  .report-table th:last-child, .report-table td:last-child { padding-right: 0; }
+  .report-table .identity .name { white-space: nowrap; }
+  .report-grid { width: max-content; min-width: 100%; }
+  .report-grid td { white-space: nowrap; }
+  .report-grid .sticky { position: sticky; left: 0; z-index: 1; background: var(--surface); padding-left: 0; box-shadow: 1px 0 0 var(--rule); }
+}
 .title-tag { display: inline-block; margin-left: 8px; font-size: var(--fs-small); font-weight: 600; color: var(--accent); }
 tr.titled td { background: var(--raised); }
 .print-only { display: none; }

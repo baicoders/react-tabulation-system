@@ -153,14 +153,14 @@ export function OverallReport({ event, params, set, version }: ViewProps) {
       ) : (
         <>
           <div className="table-wrap">
-            <table>
+            <table className="report-table">
               <thead>
                 <tr>
                   <th className="n" style={{ width: 56 }}>Place</th>
-                  <th className="n" style={{ width: 48 }}>No.</th>
+                  <th className="n wide-only" style={{ width: 48 }}>No.</th>
                   <th>Candidate</th>
-                  <th>Furthest round</th>
-                  <th className="n">Rank there</th>
+                  <th className="wide-only">Furthest round</th>
+                  <th className="n wide-only">Rank there</th>
                   <th className="n">Score there</th>
                 </tr>
               </thead>
@@ -168,7 +168,7 @@ export function OverallReport({ event, params, set, version }: ViewProps) {
                 {d.rows.map((r) => (
                   <tr key={r.candidate.id} className={r.title ? 'titled' : undefined}>
                     <td className="n">{r.position}</td>
-                    <td className="n">{r.candidate.number}</td>
+                    <td className="n wide-only">{r.candidate.number}</td>
                     <td>
                       <div className="identity">
                         <CandidatePhoto src={r.candidate.thumbUrl} name={r.candidate.name} size={32} />
@@ -176,14 +176,18 @@ export function OverallReport({ event, params, set, version }: ViewProps) {
                           <span className="name">{r.candidate.name}</span>
                           {r.title && <span className="title-tag">{r.title}</span>}
                           <span className="sub">{groupNames(r.candidate)}</span>
+                          <span className="sub narrow-only">
+                            No. {r.candidate.number}
+                            {r.reached && `, ${r.reached.name}${r.roundRank ? `, rank ${r.roundRank}` : ''}`}
+                          </span>
                         </span>
                       </div>
                     </td>
-                    <td>
+                    <td className="wide-only">
                       {r.reached?.name ?? '-'}
                       {r.reached && !r.reached.closed && <span className="sub">Still open</span>}
                     </td>
-                    <td className="n">{r.roundRank ?? '-'}</td>
+                    <td className="n wide-only">{r.roundRank ?? '-'}</td>
                     <td className="n">{r.reached?.kind === 'PAIR_VOTE' && r.score !== null ? `${r.score} votes` : fmt(r.score)}</td>
                   </tr>
                 ))}
@@ -284,11 +288,11 @@ export function RoundReport({ event, params, set, version }: ViewProps) {
         <Loading error={data.error} retry={data.reload} />
       ) : (
         <div className="table-wrap">
-          <table>
+          <table className="report-table">
             <thead>
               <tr>
                 <th className="n" style={{ width: 56 }}>{scope ? 'Place' : 'Rank'}</th>
-                <th className="n" style={{ width: 48 }}>No.</th>
+                <th className="n wide-only" style={{ width: 48 }}>No.</th>
                 <th>Candidate</th>
                 {isPair ? (
                   <>
@@ -313,13 +317,14 @@ export function RoundReport({ event, params, set, version }: ViewProps) {
               {d.rows.map((r) => (
                 <tr key={r.candidate.id}>
                   <td className="n">{r.position ?? '-'}</td>
-                  <td className="n">{r.candidate.number}</td>
+                  <td className="n wide-only">{r.candidate.number}</td>
                   <td>
                     <div className="identity">
                       <CandidatePhoto src={r.candidate.thumbUrl} name={r.candidate.name} size={32} />
                       <span>
                         <span className="name">{r.candidate.name}</span>
                         <span className="sub">{groupNames(r.candidate)}</span>
+                        <span className="sub narrow-only">No. {r.candidate.number}</span>
                       </span>
                     </div>
                   </td>
@@ -434,10 +439,10 @@ export function CandidateReport({ event, params, set, version }: ViewProps) {
                 </span>
               </h3>
               <div className="table-wrap">
-                <table>
+                <table className="report-table report-grid">
                   <thead>
                     <tr>
-                      <th>{r.pair ? 'Pair' : 'Criterion'}</th>
+                      <th className="sticky">{r.pair ? 'Pair' : 'Criterion'}</th>
                       {d.judges.map((j) => (
                         <th key={j.id} className="n">
                           {j.name}
@@ -449,7 +454,7 @@ export function CandidateReport({ event, params, set, version }: ViewProps) {
                   <tbody>
                     {r.pair && (
                       <tr>
-                        <td>Against No. {r.pair.opponent.number} {r.pair.opponent.name}</td>
+                        <td className="sticky">Against No. {r.pair.opponent.number} {r.pair.opponent.name}</td>
                         {d.judges.map((j) => (
                           <td key={j.id} className="n">
                             {j.id in r.pair!.votes ? (r.pair!.votes[j.id] ? 'For' : 'Against') : '-'}
@@ -462,7 +467,7 @@ export function CandidateReport({ event, params, set, version }: ViewProps) {
                         const given = d.judges.map((j) => cr.points[j.id]).filter((p): p is number => p !== undefined);
                         return (
                           <tr key={cr.id}>
-                            <td>
+                            <td className="sticky">
                               {cr.name}
                               <span className="sub">
                                 out of {cr.max}
@@ -551,11 +556,11 @@ export function JudgeReport({ event, params, set, version }: ViewProps) {
       ) : (
         <>
           <div className="table-wrap">
-            <table>
+            <table className="report-table report-grid">
               <thead>
                 <tr>
-                  <th className="n" style={{ width: 48 }}>No.</th>
-                  <th>Candidate</th>
+                  <th className="n wide-only" style={{ width: 48 }}>No.</th>
+                  <th className="sticky">Candidate</th>
                   {isPair ? (
                     <th>Vote</th>
                   ) : (
@@ -575,8 +580,11 @@ export function JudgeReport({ event, params, set, version }: ViewProps) {
               <tbody>
                 {d.rows.map((r) => (
                   <tr key={r.candidate.id}>
-                    <td className="n">{r.candidate.number}</td>
-                    <td>{r.candidate.name}</td>
+                    <td className="n wide-only">{r.candidate.number}</td>
+                    <td className="sticky">
+                      {r.candidate.name}
+                      <span className="sub narrow-only">No. {r.candidate.number}</span>
+                    </td>
                     {isPair ? (
                       <td>{r.vote === 'won' ? 'Picked' : r.vote === 'lost' ? <span className="muted">Not picked</span> : '-'}</td>
                     ) : (
