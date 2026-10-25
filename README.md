@@ -12,6 +12,8 @@ The flow is kept simple: **judges input scores, the system calculates, the admin
 
 | | |
 | --- | --- |
+| ![Login with the school's seal](docs/screenshots/34-login-branded.png) | ![Printed report with the school's letterhead](docs/screenshots/25b-report-printed.png) |
+| **Login**: the school's seal and the event that is live now. | **Printed reports**: the school's letterhead, then the event. |
 | ![Admin overview with live standings](docs/screenshots/18-overview-all-submitted.png) | ![Judge score sheet](docs/screenshots/15-judge-sheet-typing.png) |
 | **Admin overview**: live standings and who has submitted, no page reload. | **Judge score sheet**: totals out of 100 as scores are typed. |
 | ![Pair vote](docs/screenshots/22-judge-pair-voted.png) | ![Overall ranking report](docs/screenshots/25-report-overall.png) |
@@ -19,7 +21,7 @@ The flow is kept simple: **judges input scores, the system calculates, the admin
 | ![Candidates with photos](docs/screenshots/05-candidates.png) | ![Rounds and criteria](docs/screenshots/10-rounds.png) |
 | **Candidates**: paginated, searchable, with photos. | **Rounds and criteria**: cut-offs, points and weights. |
 
-All screens, taken by the Playwright end-to-end test: [docs/screenshots.md](docs/screenshots.md).
+Every screen, arranged by user journey (admin setup, judge scoring, running the event, results), taken by the Playwright end-to-end test: [docs/screenshots.md](docs/screenshots.md).
 
 ## Features
 
@@ -284,7 +286,7 @@ docker-compose.dev.yml development stack with hot reload
 ## Documentation
 
 - [Product requirements (PRD)](docs/PRD.md)
-- [Screenshots and end-to-end test](docs/screenshots.md)
+- [Screenshots and user journeys](docs/screenshots.md)
 - [Architecture](docs/architecture.md)
 - [Data model](docs/data-model.md)
 - [Scoring methods](docs/scoring.md)

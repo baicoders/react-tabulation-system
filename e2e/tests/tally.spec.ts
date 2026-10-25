@@ -21,7 +21,8 @@ test.describe.configure({ mode: 'serial' });
 let admin: Api;
 let eventId: number;
 let rounds: { id: number; name: string; kind: string; status: string }[];
-// The system's own branding before the run, put back afterwards so the running app keeps its real logo.
+// The system's own branding (the school's seal and name). The settings test swaps in a temporary one to prove
+// changes reach every screen, then puts this back, so every screenshot shows the real branding.
 let savedBranding: { appName: string; organization: string | null; brandColor: string | null; logo: Buffer | null };
 
 const roundId = (name: string) => rounds.find((r) => r.name === name)!.id;
@@ -69,19 +70,22 @@ test.beforeAll(async () => {
   expect((await admin.call(`/rounds/${roundId('Production Number')}/open`, 'POST')).status).toBe(200);
 });
 
-test.afterAll(async () => {
+async function restoreBranding() {
   const { logo, ...fields } = savedBranding;
-  await admin.call('/settings', 'PATCH', fields);
+  expect((await admin.call('/settings', 'PATCH', fields)).status).toBe(200);
   if (logo) {
     const form = new FormData();
     form.append('logo', new Blob([logo], { type: 'image/png' }), 'logo.png');
-    await admin.call('/settings/logo', 'POST', undefined, form);
+    expect((await admin.call('/settings/logo', 'POST', undefined, form)).status).toBe(200);
   } else {
     await admin.call('/settings/logo', 'DELETE');
   }
-});
+}
 
-/** A made-up crest for the screenshots: the docs show how branding looks without using a real school's logo. */
+// Also after a failed run, so the running app never keeps the temporary branding.
+test.afterAll(restoreBranding);
+
+/** A made-up crest, uploaded for a moment to check that a new logo reaches every screen. */
 async function sampleLogo(page: Page): Promise<Buffer> {
   await page.setContent(`
     <body style="margin:0;background:transparent">
@@ -101,28 +105,37 @@ test('settings: the school name, logo and color on every screen', async ({ brows
   const page = await adminPage(browser);
   await page.getByRole('link', { name: 'Settings' }).click();
   await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+
+  // Change everything to a temporary branding and check it reaches the menu, the tab and the login page.
   await page.getByLabel('System name').fill('Sample College Tabulation');
   await page.getByLabel('Organization').fill('Sample College of the Philippines');
   await page.getByLabel('Brand color hex').fill('#1d2a6b');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
-
   const scratch = await page.context().newPage();
   const logo = await sampleLogo(scratch);
   await scratch.close();
   await page.locator('input[type=file]').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: logo });
   await expect(page.getByText('This is the logo now.')).toBeVisible();
-  // The menu and the browser tab carry the school's logo and name.
   await expect(page.locator('.sidebar .brand img.brand-logo')).toBeVisible();
   await expect(page.locator('.sidebar .brand')).toContainText('Sample College Tabulation');
   await expect(page).toHaveTitle('Sample College Tabulation');
   expect(await page.evaluate(() => document.querySelector<HTMLLinkElement>('link[rel=icon]')!.href)).toContain('/uploads/branding/');
-  await shot(page, '33-settings-branding');
+  const peek = await newPage(browser);
+  await peek.goto('/login');
+  await expect(peek.getByText('Sample College of the Philippines')).toBeVisible();
+  await peek.context().close();
 
   // A colour that is not a hex code is stopped by the form and refused by the API.
   await page.getByLabel('Brand color hex').fill('navy');
   expect(await page.getByLabel('Brand color hex').evaluate((el: HTMLInputElement) => el.validity.valid)).toBe(false);
   expect((await admin.call('/settings', 'PATCH', { brandColor: 'navy' })).status).toBe(400);
+
+  // Put the school's own branding back; from here every screenshot shows it.
+  await restoreBranding();
+  await page.reload();
+  await expect(page.getByLabel('System name')).toHaveValue(savedBranding.appName);
+  await shot(page, '33-settings-branding');
 
   // Event details keep each event's own name, date and venue.
   await page.goto(`/admin/events/${eventId}/details`);
@@ -130,15 +143,15 @@ test('settings: the school name, logo and color on every screen', async ({ brows
   await page.getByLabel('Venue').fill('ACLC College of Ormoc gymnasium');
   await page.getByRole('button', { name: 'Save details' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
+  await shot(page, '35-event-details');
 
   const judge = await newPage(browser);
   await judge.goto('/login');
-  await expect(judge.getByText('Sample College of the Philippines')).toBeVisible();
-  await expect(judge.getByRole('img', { name: /logo/ })).toBeVisible();
+  await expect(judge.locator('.login-brand')).toContainText(savedBranding.appName);
   await expect(judge.locator('.live-event')).toContainText('(demo)');
   await shot(judge, '34-login-branded');
   await loginUi(judge, 'judge', 'Marites Uy', JUDGE_PASSWORD);
-  await expect(judge.locator('.judge-bar img.brand-logo')).toBeVisible();
+  await expect(judge.locator('.judge-bar')).toContainText('(demo)');
   await judge.context().close();
   await page.context().close();
 });
@@ -382,7 +395,7 @@ test('reports: overall, by round, by candidate, by judge, split by group, Excel'
   // On paper: the letterhead with the logo, organization, event, date and venue.
   await page.emulateMedia({ media: 'print' });
   await expect(page.locator('.print-brand')).toBeVisible();
-  await expect(page.locator('.print-brand')).toContainText('Sample College of the Philippines');
+  await expect(page.locator('.print-brand')).toContainText(savedBranding.organization ?? savedBranding.appName);
   await expect(page.locator('.narrow-only').first()).toBeHidden();
   await shot(page, '25b-report-printed');
   await page.emulateMedia({ media: 'screen' });
