@@ -76,8 +76,8 @@ It uses the installed Chrome (set `PW_CHANNEL=msedge` for Edge) and `http://loca
 | Totals out of 100 appear as scores are typed. | Every score in; Submit unlocks. |
 | ![Submitted](screenshots/17-judge-submitted.png) | ![All submitted](screenshots/18-overview-all-submitted.png) |
 | Submitted scores lock. | The overview updated live as each judge submitted. |
-| ![Tie at the cut-off](screenshots/19a-overview-tie-at-cut.png) | ![Round closed](screenshots/19-overview-round-closed.png) |
-| A tie at the Top 20 line: the tabulator sends all tied candidates on. | The round is closed and the next one is ready to open. |
+| ![Round closed](screenshots/19-overview-round-closed.png) | |
+| The round is closed and the next one is ready to open. If candidates tie at the cut-off line, the overview first asks to send all of them on (the test saves `19a-overview-tie-at-cut.png` when the random scores tie). | |
 
 ## Pair vote (Deba Teh)
 
