@@ -10,23 +10,7 @@ The whole system runs on one server PC with Docker Compose. Client PCs connect o
 
 ## First setup (before event day, with internet)
 
-1. Clone the repository on the server PC.
-2. Create the environment file:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-3. Edit `.env`: set strong values for `POSTGRES_PASSWORD`, `JWT_SECRET` (32+ random characters) and `ADMIN_PASSWORD`. Change `WEB_PORT` if port 80 is already used.
-4. Build and start:
-
-   ```bash
-   docker compose up -d --build
-   ```
-
-   This downloads and builds all images, so do it while you still have internet.
-5. On Windows, allow inbound TCP on the web port (80 by default) in Windows Defender Firewall for private networks.
-6. From another PC, open `http://192.168.1.10` (your server IP) and log in as the admin.
+Follow the [setup guide in the README](../README.md#setup-guide-fresh-windows-pc). It goes from installing WSL 2, Docker Desktop and Git on a fresh Windows PC, through the `.env` file, a fixed IP address and the firewall rule, to the first login and the school's branding in Settings. Do it while the server PC still has internet: the first start downloads and builds everything.
 
 ## On event day
 

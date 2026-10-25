@@ -6,6 +6,8 @@ Nothing is hardcoded to one event. Each event sets its own rounds, cut-offs (Top
 
 The flow is kept simple: **judges input scores, the system calculates, the admin shows the report.**
 
+**Setting it up?** Follow the [setup guide](#setup-guide-fresh-windows-pc): from installing the prerequisites on a fresh Windows PC to the first login.
+
 **Product requirements:** [docs/PRD.md](docs/PRD.md) covers the goals, roles, scoring rules, reports, the first event (Hara ng ACLC Ormoc 2026) as an example configuration, and the open questions.
 
 ## Preview
@@ -191,21 +193,215 @@ erDiagram
 
 More detail: [docs/data-model.md](docs/data-model.md) and the schema in [`apps/api/prisma/schema.prisma`](apps/api/prisma/schema.prisma).
 
-## Quick start (event server)
+## Setup guide (fresh Windows PC)
 
-Requirements: Docker Desktop (Windows uses WSL2) or Docker Engine on Linux.
+These steps take a new Windows PC to the first login. They need internet; the event itself does not. Do them on the PC that will be the **server**: the one that runs the system. Judges' PCs need nothing installed, only a browser.
 
-```bash
-cp .env.example .env
+**What you need**
+
+- Windows 10 (version 22H2) or Windows 11, 64-bit, with an administrator account
+- 8 GB RAM or more, and about 10 GB of free disk space
+- Virtualization turned on in the BIOS (most PCs have it on; step 1 tells you if it is not)
+- A wired connection to the same network (router or switch) as the judges' PCs
+
+All commands below are typed in **PowerShell**. To open it as administrator: press Start, type `PowerShell`, right-click **Windows PowerShell**, choose **Run as administrator**.
+
+### Step 1. Turn on WSL 2
+
+Docker runs on WSL 2 (Windows Subsystem for Linux). In PowerShell as administrator:
+
+```powershell
+wsl --install
 ```
 
-Edit `.env` and set real values for `POSTGRES_PASSWORD`, `JWT_SECRET` and `ADMIN_PASSWORD`.
+Restart the PC when it finishes, then check it:
 
-```bash
+```powershell
+wsl --status
+```
+
+It should say the default version is 2. If it says virtualization is not enabled, restart into the BIOS (usually F2, F10 or Del at power on) and turn on **Intel VT-x** or **AMD SVM**, then run `wsl --install` again.
+
+### Step 2. Install Docker Desktop
+
+1. Download **Docker Desktop for Windows** from https://www.docker.com/products/docker-desktop/
+2. Run the installer and keep **Use WSL 2 instead of Hyper-V** ticked. Sign out and back in (or restart) when it asks.
+3. Open Docker Desktop from the Start menu and accept its terms. Wait until it says **Engine running**.
+4. In Docker Desktop, open **Settings > General** and tick **Start Docker Desktop when you sign in**, so the system comes back by itself after a restart.
+
+Check it in a new PowerShell window:
+
+```powershell
+docker --version
+```
+
+```powershell
+docker compose version
+```
+
+```powershell
+docker run --rm hello-world
+```
+
+The last one prints "Hello from Docker!" when everything works.
+
+### Step 3. Install Git
+
+Download **Git for Windows** from https://git-scm.com/download/win and install it with the default options. Check it in a new PowerShell window:
+
+```powershell
+git --version
+```
+
+No Git? You can skip this step and download the code as a ZIP in step 4 instead.
+
+### Step 4. Get the code
+
+```powershell
+cd C:\
+```
+
+```powershell
+git clone https://github.com/baicoders/react-tabulation-system.git
+```
+
+```powershell
+cd C:\react-tabulation-system
+```
+
+Without Git: on https://github.com/baicoders/react-tabulation-system press **Code > Download ZIP**, extract it to `C:\react-tabulation-system`, and `cd` into that folder.
+
+### Step 5. Create the settings file (`.env`)
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Make three random secrets. Run this three times and copy each result somewhere safe:
+
+```powershell
+-join ((48..57) + (65..90) + (97..122) | Get-Random -Count 40 | ForEach-Object { [char]$_ })
+```
+
+Open the file:
+
+```powershell
+notepad .env
+```
+
+Change these lines, then save and close Notepad:
+
+| Setting | What to put |
+| --- | --- |
+| `POSTGRES_PASSWORD` | The first random secret. The database password; nobody types it. |
+| `JWT_SECRET` | The second random secret. Signs logins; nobody types it. |
+| `ADMIN_USERNAME` | The admin's login name, for example `admin` |
+| `ADMIN_PASSWORD` | The admin's password. Pick one the tabulator can type; you can use the third secret. |
+| `WEB_PORT` | Leave `80` unless another program uses port 80 (see Troubleshooting). |
+
+Use letters and numbers only in the passwords: symbols such as `@`, `:` or `/` break the database address. The admin account is created from `ADMIN_USERNAME` and `ADMIN_PASSWORD` the first time the system starts; changing them later does not change an existing account.
+
+### Step 6. Start the system
+
+```powershell
 docker compose up -d --build
 ```
 
-Open `http://<server-ip>` from any PC on the same network and log in as the admin from `.env`. Full event-day steps, firewall and backups are in [docs/deployment.md](docs/deployment.md).
+The first run downloads and builds everything, which takes 5 to 15 minutes. Then check that all three parts are up:
+
+```powershell
+docker compose ps
+```
+
+`db`, `api` and `web` should all show `running` (or `Up`). The API's log should say it created the admin:
+
+```powershell
+docker compose logs api
+```
+
+Open http://localhost on the server PC. The login page should appear.
+
+### Step 7. Give the server a fixed IP address
+
+Judges' PCs reach the server by its IP address, so it must not change. Find the current one:
+
+```powershell
+ipconfig
+```
+
+Note the **IPv4 Address** of the wired adapter, for example `192.168.1.10`. Then keep it fixed in one of two ways:
+
+- **In the router (best):** open the router's admin page and add a **DHCP reservation** for the server PC with that address.
+- **On the PC:** Settings > Network & internet > Ethernet > IP assignment > **Edit** > Manual, IPv4 on, and enter the same IP, subnet mask (usually `255.255.255.0`), gateway (the router, usually ending in `.1`) and DNS.
+
+### Step 8. Let judges' PCs in through the firewall
+
+Windows blocks incoming connections by default. First make sure the network is set to **Private**:
+
+```powershell
+Get-NetConnectionProfile
+```
+
+If `NetworkCategory` says `Public`, change it (use the `InterfaceAlias` shown, often `Ethernet`), in PowerShell as administrator:
+
+```powershell
+Set-NetConnectionProfile -InterfaceAlias "Ethernet" -NetworkCategory Private
+```
+
+Then allow the web port (change `80` if you changed `WEB_PORT`):
+
+```powershell
+New-NetFirewallRule -DisplayName "ACLC Ormoc Tabulation" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow -Profile Private
+```
+
+### Step 9. Check from a judge's PC
+
+On another PC on the same network, open a browser and go to the server's address, for example `http://192.168.1.10` (add `:8080` or your port if `WEB_PORT` is not 80). The login page should appear. Bookmark it on every judge's PC.
+
+### Step 10. First login and branding
+
+1. On the login page choose **Admin** and log in with `ADMIN_USERNAME` and `ADMIN_PASSWORD` from `.env`.
+2. Open **Settings** and set the system name, the school's full name, the seal (a square PNG with a transparent background prints best) and the brand colour.
+3. Open **All events > New event** and set up the first event. The checklist in [docs/deployment.md](docs/deployment.md) walks through groups, candidates, rounds, judges, a rehearsal in testing mode and the event day itself.
+
+Want sample data to practise on first? This adds a demo event with 60 candidates, 6 rounds and 5 judges (password `judge1234`):
+
+```powershell
+docker compose exec api node dist/seed-demo.js
+```
+
+### Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| `docker` is not recognized | Docker Desktop is not installed or the PowerShell window was opened before installing. Open a new window; start Docker Desktop and wait for **Engine running**. |
+| `error during connect` or `cannot find the file specified` | Docker Desktop is not running. Start it from the Start menu and wait for **Engine running**. |
+| WSL says virtualization is not enabled | Turn on Intel VT-x or AMD SVM in the BIOS (step 1). |
+| `port is already allocated` or `address already in use` | Another program uses port 80 (often IIS or Skype). Set `WEB_PORT=8080` in `.env`, run `docker compose up -d` again, use port 8080 in the firewall rule, and open `http://<server-ip>:8080`. |
+| `Set POSTGRES_PASSWORD in .env` (or `JWT_SECRET`, `ADMIN_PASSWORD`) | That line in `.env` is missing or empty. Fill it in (step 5) and start again. |
+| Judges' PCs cannot open the page | Check the IP with `ipconfig`, that the network is Private and the firewall rule exists (step 8), and that both PCs are on the same network. Try `http://<server-ip>` from the server PC itself first. |
+| `api` keeps restarting | Run `docker compose logs api`. Usually a password with a symbol in `.env`; use letters and numbers only. |
+| Cannot log in as admin | The account was created with the values from the first start. Check `.env`; if the password was changed afterwards, set a new `ADMIN_USERNAME` and run `docker compose up -d` to create that admin. |
+
+### Updating to a new version
+
+```powershell
+cd C:\react-tabulation-system
+```
+
+```powershell
+git pull
+```
+
+```powershell
+docker compose up -d --build
+```
+
+Database changes are applied automatically when the API starts, and the data stays. Take a backup first (see [docs/deployment.md](docs/deployment.md)).
+
+### On Linux
+
+Install Docker Engine and the Compose plugin (https://docs.docker.com/engine/install/), then follow steps 4 to 10 with `cp .env.example .env` instead of `Copy-Item`, `openssl rand -hex 20` for the secrets, and your distribution's firewall (for example `sudo ufw allow 80/tcp`).
 
 ## Development (hot reload)
 
