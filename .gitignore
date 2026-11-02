@@ -25,4 +25,4 @@ e2e/report/
 e2e/test-results/
 
 # Client logos stay out of the public repo; upload them on the Event details screen
-branding/
+/branding/
