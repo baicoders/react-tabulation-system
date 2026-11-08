@@ -25,6 +25,7 @@ const candidateSelect = {
   number: true,
   name: true,
   picturePath: true,
+  status: true,
   groupValues: { select: { groupValue: { select: { id: true, name: true, groupId: true } } } },
 } satisfies Prisma.CandidateSelect;
 
@@ -63,6 +64,8 @@ candidatesRouter.get('/events/:eventId/candidates', requireRole('admin', 'judge'
 const candidateBody = z.object({
   number: z.coerce.number().int().positive(),
   name: z.string().trim().min(1),
+  // A withdrawn candidate stays in every record and report, out of the ranks and the cuts.
+  status: z.enum(['ACTIVE', 'WITHDRAWN']).optional(),
   groupValueIds: z.array(z.number().int().positive()).default([]),
 });
 

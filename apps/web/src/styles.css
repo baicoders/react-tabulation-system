@@ -360,10 +360,7 @@ th .sub { display: block; font-size: 11px; color: var(--faint); }
 .title-tag { display: inline-block; margin-left: 8px; font-size: var(--fs-small); font-weight: 600; color: var(--accent); }
 tr.titled td { background: var(--raised); }
 .print-only { display: none; }
-.signatures { margin-top: 48px; }
-.signature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px 32px; margin-top: 32px; }
-.signature { display: grid; gap: 8px; text-align: center; }
-.signature-line { border-bottom: 1px solid var(--text); height: 28px; }
+
 
 /* Paper: the frame, navigation and controls drop away; the report fills the page in black on white. */
 @media print {
@@ -390,7 +387,6 @@ tr.titled td { background: var(--raised); }
   .title-tag { color: var(--text); }
   .pill { background: none; padding: 0; }
   .report-block { break-inside: avoid-page; }
-  .signatures { break-inside: avoid; }
 }
 
 /* judge assignment grid: a tick per judge and scored category */

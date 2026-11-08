@@ -1,7 +1,9 @@
 import { prisma } from './prisma';
 import { pictureUrls } from './images';
 import { tabulatePairRound, type PairTally } from './tabulate-pairs';
+import { combineCutBasis, loadAdjustments, loadBasis, type AdjustmentRow, type BasisSource } from './cut';
 import {
+  applyAdjustments,
   applyCarryOver,
   assignRanks,
   averageScores,
@@ -9,6 +11,7 @@ import {
   topN,
   type CandidateScore,
   type JudgeTotal,
+  type RankedCandidate,
 } from '../scoring';
 
 export interface JudgeProgress {
@@ -29,8 +32,17 @@ export interface StandingRow {
   number: number;
   name: string;
   thumbUrl: string | null;
-  score: number;
-  rank: number;
+  score: number | null;
+  rank: number | null;
+  /** A withdrawn candidate stays on the sheet, out of the ranks and the cut. */
+  withdrawn?: boolean;
+}
+
+/** The cut's combined ranking when a round's cut is based on more rounds than itself. */
+export interface CutBasis {
+  sources: BasisSource[];
+  names: string[];
+  standings: StandingRow[];
 }
 
 /** Share of a criterion inside its category, in percent: its weight, or an equal split when no weights are set. */
@@ -57,11 +69,12 @@ async function tabulateScoredRound(roundId: number) {
     include: {
       event: { select: { id: true, testingMode: true } },
       categories: { orderBy: { order: 'asc' }, include: { criteria: { orderBy: { order: 'asc' } }, judges: true } },
-      entries: { include: { candidate: { select: { id: true, number: true, name: true, picturePath: true } } } },
+      entries: { include: { candidate: { select: { id: true, number: true, name: true, picturePath: true, status: true } } } },
     },
   });
 
   const entryIds = round.entries.map((e) => e.candidateId);
+  const activeIds = new Set(round.entries.filter((e) => e.candidate.status === 'ACTIVE').map((e) => e.candidateId));
   const criteria = round.categories.flatMap((c) => c.criteria);
   const testFilter = round.event.testingMode ? {} : { isTest: false };
 
@@ -140,20 +153,42 @@ async function tabulateScoredRound(roundId: number) {
     }
   }
 
-  const ranked = assignRanks(results, direction);
+  const adjustments = await loadAdjustments(round.id);
+  results = applyAdjustments(
+    results,
+    adjustments.map((a) => ({ candidateId: a.candidateId, points: a.points })),
+  );
+
+  // Withdrawn candidates keep their scores on the sheet but out of the ranks and the cut.
+  const ranked = assignRanks(results.filter((r) => activeIds.has(r.candidateId)), direction);
   const byId = new Map(round.entries.map((e) => [e.candidateId, e.candidate]));
-  const standings: StandingRow[] = ranked.map((r) => {
-    const c = byId.get(r.candidateId)!;
+  const toRow = (candidateId: number, score: number | null, rank: number | null, withdrawn = false): StandingRow => {
+    const c = byId.get(candidateId)!;
     return {
-      candidateId: r.candidateId,
+      candidateId,
       number: c.number,
       name: c.name,
       thumbUrl: pictureUrls(c.picturePath).thumbUrl,
-      score: Math.round(r.score * 100) / 100,
-      rank: r.rank,
+      score: score === null ? null : Math.round(score * 100) / 100,
+      rank,
+      ...(withdrawn ? { withdrawn: true } : {}),
     };
-  });
-  const cut = round.advanceCount ? topN(ranked, round.advanceCount) : { advancing: ranked, tieAtCutLine: [] };
+  };
+  const scoreById = new Map(results.map((r) => [r.candidateId, r.score]));
+  const standings: StandingRow[] = [
+    ...ranked.map((r) => toRow(r.candidateId, r.score, r.rank)),
+    ...round.entries.filter((e) => !activeIds.has(e.candidateId)).map((e) => toRow(e.candidateId, scoreById.get(e.candidateId) ?? null, null, true)),
+  ];
+
+  // The cut: this round alone, or the combined basis the rules call for ("Basis of Top 5 = Gown and Deba Teh").
+  const basis = await combineCutBasis(await loadBasis(round.id), results, round.id);
+  let cutRanked: RankedCandidate[] = ranked;
+  let cutStandings: StandingRow[] | null = null;
+  if (basis) {
+    cutRanked = assignRanks(basis.combined.filter((r) => activeIds.has(r.candidateId)), direction);
+    cutStandings = cutRanked.map((r) => toRow(r.candidateId, r.score, r.rank));
+  }
+  const cut = round.advanceCount ? topN(cutRanked, round.advanceCount) : { advancing: cutRanked, tieAtCutLine: [] };
 
   return {
     round: { id: round.id, name: round.name, order: round.order, status: round.status, kind: round.kind, scoreMethod: round.scoreMethod, advanceCount: round.advanceCount },
@@ -164,6 +199,8 @@ async function tabulateScoredRound(roundId: number) {
     direction,
     advancingIds: cut.advancing.map((r) => r.candidateId),
     tieAtCutLine: cut.tieAtCutLine.map((r) => r.candidateId),
+    basis: basis && cutStandings ? ({ sources: basis.sources, names: basis.sources.map((s) => s.name), standings: cutStandings } as CutBasis) : (null as CutBasis | null),
+    adjustments,
     pairs: [] as PairTally[],
     pairTies: [] as number[],
     unpaired: 0,

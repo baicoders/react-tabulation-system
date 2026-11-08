@@ -1,5 +1,5 @@
 // Data model for the general tabulation system.
-// Everything pageant specific (rounds, groups, criteria) is data, not code. Deductions are handled on paper.
+// Everything pageant specific (rounds, groups, criteria, cut bases, penalties) is data, not code.
 
 generator client {
   provider      = "prisma-client-js"
@@ -43,6 +43,11 @@ enum RoundStatus {
 enum ScoreStatus {
   DRAFT
   SUBMITTED
+}
+
+enum CandidateStatus {
+  ACTIVE
+  WITHDRAWN
 }
 
 model AdminUser {
@@ -96,6 +101,8 @@ model Candidate {
   number       Int
   name         String
   picturePath  String?
+  // A withdrawn candidate stays in every record and report, but out of the ranks and cuts.
+  status       CandidateStatus       @default(ACTIVE)
   event        Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
   groupValues  CandidateGroupValue[]
   roundEntries RoundEntry[]
@@ -103,6 +110,7 @@ model Candidate {
   pairsAsA     Pair[]                @relation("PairCandidateA")
   pairsAsB     Pair[]                @relation("PairCandidateB")
   votesWon     PairVote[]
+  adjustments  Adjustment[]
 
   @@unique([eventId, number])
 }
@@ -134,8 +142,41 @@ model Round {
   categories      Category[]
   entries         RoundEntry[]
   pairs           Pair[]
+  adjustments     Adjustment[]
+  // What this round's cut is based on: its own score plus these rounds' scores ("Basis of Top 5 = Gown and Deba Teh").
+  basis           RoundBasis[] @relation("RoundBasisTarget")
+  basisFor        RoundBasis[] @relation("RoundBasisSource")
 
   @@unique([eventId, order])
+}
+
+// One score in a round's cut basis. Weight multiplies the round's score in the total (scores run out of
+// 100; a pair-vote round contributes its votes). The round itself is usually one of the sources.
+model RoundBasis {
+  id            Int   @id @default(autoincrement())
+  roundId       Int
+  sourceRoundId Int
+  weight        Decimal @db.Decimal(8, 4) @default(1)
+  round         Round @relation("RoundBasisTarget", fields: [roundId], references: [id], onDelete: Cascade)
+  sourceRound   Round @relation("RoundBasisSource", fields: [sourceRoundId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, sourceRoundId])
+}
+
+// Points added to or taken off a candidate's score in a round after tabulation: guideline penalties,
+// last-minute fixes. Counted at full value in the round's score and in any cut basis that includes it.
+model Adjustment {
+  id          Int      @id @default(autoincrement())
+  roundId     Int
+  candidateId Int
+  points      Decimal  @db.Decimal(8, 2)
+  reason      String?
+  actor       String?
+  createdAt   DateTime @default(now())
+  round       Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([roundId, candidateId])
 }
 
 // Which candidates compete in a round, and whether they advanced past it.

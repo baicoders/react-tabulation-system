@@ -3,6 +3,7 @@ export type RoundKind = 'SCORED' | 'PAIR_VOTE';
 export type ScoreMethod = 'AVERAGE' | 'RANK_SUM';
 export type TieBreak = 'SHARED_RANK' | 'CATEGORY_SCORE' | 'FIRST_PLACE_COUNT' | 'ADMIN_DECIDES';
 export type RoundStatus = 'PENDING' | 'OPEN' | 'CLOSED';
+export type CandidateStatus = 'ACTIVE' | 'WITHDRAWN';
 
 export interface EventListItem {
   id: number;
@@ -33,11 +34,14 @@ export interface RoundSummary {
   name: string;
   kind: RoundKind;
   scoreMethod: ScoreMethod;
+  /** Top N that go on to the next round. Null: the final round, or a cut the admin decides by hand. */
   advanceCount: number | null;
   carryOverWeight: number | null;
   dropExtremes: boolean;
   tieBreak: TieBreak;
   status: RoundStatus;
+  /** What the cut is based on: these rounds' scores times their weights. Empty: this round alone. */
+  basis?: { sourceRoundId: number; weight: number }[];
   _count: { entries: number; categories?: number };
 }
 

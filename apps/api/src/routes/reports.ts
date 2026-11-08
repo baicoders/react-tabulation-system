@@ -4,7 +4,7 @@ import { pictureUrls } from '../lib/images';
 import { prisma } from '../lib/prisma';
 import { shares, tabulateRound } from '../lib/tabulate';
 import { requireRole } from '../middleware/auth';
-import { rankTitle } from '../scoring';
+import { assignRanks, combineBasis, rankTitle } from '../scoring';
 
 // Reports read what judges submitted and what closing a round saved. Nothing here changes data.
 export const reportsRouter = Router();
@@ -17,13 +17,21 @@ const candidateSelect = {
   number: true,
   name: true,
   picturePath: true,
+  status: true,
   groupValues: { select: { groupValue: { select: { id: true, name: true, groupId: true } } } },
 } as const;
 
-type CandidateRow = { id: number; number: number; name: string; picturePath: string | null; groupValues: { groupValue: { id: number; name: string; groupId: number } }[] };
+type CandidateRow = {
+  id: number;
+  number: number;
+  name: string;
+  picturePath: string | null;
+  status: string;
+  groupValues: { groupValue: { id: number; name: string; groupId: number } }[];
+};
 
 function candidateDto(c: CandidateRow) {
-  return { id: c.id, number: c.number, name: c.name, thumbUrl: pictureUrls(c.picturePath).thumbUrl, groups: c.groupValues.map((g) => g.groupValue) };
+  return { id: c.id, number: c.number, name: c.name, status: c.status, thumbUrl: pictureUrls(c.picturePath).thumbUrl, groups: c.groupValues.map((g) => g.groupValue) };
 }
 
 /** Competition positions (1, 1, 3) from a sorted list and a "same as the one before" test. */
@@ -65,21 +73,29 @@ reportsRouter.get('/events/:eventId/reports/overall', admin, async (req, res) =>
     })
     .sort(
       (a, b) =>
+        // Withdrawn candidates stay on the report at the bottom, without a place or a title.
+        (a.candidate.status === 'WITHDRAWN' ? 1 : 0) - (b.candidate.status === 'WITHDRAWN' ? 1 : 0) ||
         (b.reached?.order ?? 0) - (a.reached?.order ?? 0) ||
         (a.roundRank ?? Number.MAX_SAFE_INTEGER) - (b.roundRank ?? Number.MAX_SAFE_INTEGER) ||
         (a.lastClosedRank ?? Number.MAX_SAFE_INTEGER) - (b.lastClosedRank ?? Number.MAX_SAFE_INTEGER) ||
         a.candidate.number - b.candidate.number,
     );
 
-  const pos = positions(
-    rows,
+  const activeRows = rows.filter((r) => r.candidate.status !== 'WITHDRAWN');
+  const pos = new Map<number, number>();
+  const activePos = positions(
+    activeRows,
     (a, b) => a.reached?.order === b.reached?.order && a.roundRank === b.roundRank && (a.roundRank !== null || (a.lastClosedRank !== null && a.lastClosedRank === b.lastClosedRank)),
   );
+  activeRows.forEach((r, i) => pos.set(r.candidate.id, activePos[i]));
   const finalClosed = finalRound?.status === 'CLOSED';
   res.json({
     event,
     finalRound: finalRound ? { id: finalRound.id, name: finalRound.name, closed: finalClosed } : null,
-    rows: rows.map((r, i) => ({ ...r, position: pos[i], title: finalClosed && pos[i] <= 4 ? rankTitle(pos[i]) : null })),
+    rows: rows.map((r) => {
+      const position = pos.get(r.candidate.id) ?? null;
+      return { ...r, position, title: finalClosed && position !== null && position <= 4 ? rankTitle(position) : null };
+    }),
   });
 });
 
@@ -118,18 +134,33 @@ reportsRouter.get('/rounds/:id/report', admin, async (req, res) => {
     return r2([...byJudge.values()].reduce((a, b) => a + b, 0) / byJudge.size);
   };
 
+  // Adjustments against the round's scores (penalties, fixes): part of the score, with their reasons shown.
+  const adjById = new Map<number, { points: number; reasons: string[] }>();
+  for (const a of tab.adjustments) {
+    const cur = adjById.get(a.candidateId) ?? { points: 0, reasons: [] };
+    cur.points += a.points;
+    if (a.reason) cur.reasons.push(a.reason);
+    adjById.set(a.candidateId, cur);
+  }
+
   const rows = round.entries
     .filter((e) => inGroup(e.candidate))
     .map((e) => {
       const closed = round.status === 'CLOSED';
       const standing = live.get(e.candidateId);
       const pair = tab.pairs.find((p) => p.a.id === e.candidateId || p.b.id === e.candidateId);
+      const withdrawn = e.candidate.status === 'WITHDRAWN';
+      const adj = adjById.get(e.candidateId);
       return {
         candidate: candidateDto(e.candidate),
+        withdrawn,
         categories: Object.fromEntries(round.categories.map((c) => [c.id, categoryAverage(e.candidateId, c.id)])),
         score: closed ? (e.score === null ? null : Number(e.score)) : (standing?.score ?? null),
-        rank: closed ? e.rank : (standing?.rank ?? null),
-        advanced: e.advanced,
+        // A withdrawn candidate keeps every score on the report, without a rank or a place.
+        rank: withdrawn ? null : closed ? e.rank : (standing?.rank ?? null),
+        adjustment: adj ? r2(adj.points) : null,
+        adjustmentReasons: adj && adj.reasons.length > 0 ? adj.reasons.join('; ') : null,
+        advanced: withdrawn ? false : e.advanced,
         pair: pair
           ? {
               opponent: pair.a.id === e.candidateId ? pair.b : pair.a,
@@ -140,7 +171,12 @@ reportsRouter.get('/rounds/:id/report', admin, async (req, res) => {
           : null,
       };
     })
-    .sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER) || a.candidate.number - b.candidate.number);
+    .sort(
+      (a, b) =>
+        (a.withdrawn ? 1 : 0) - (b.withdrawn ? 1 : 0) ||
+        (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER) ||
+        a.candidate.number - b.candidate.number,
+    );
 
   // Within a group, positions are recounted from 1 so each group gets its own order.
   const groupPos = positions(rows, (a, b) => a.rank !== null && a.rank === b.rank);
@@ -191,7 +227,7 @@ reportsRouter.get('/candidates/:id/report', admin, async (req, res) => {
         name: e.round.name,
         kind: e.round.kind,
         status: e.round.status,
-        rank: e.rank,
+        rank: candidate.status === 'WITHDRAWN' ? null : e.rank,
         score: e.score === null ? null : Number(e.score),
         advanced: e.advanced,
         categories: e.round.categories.map((c) => ({
@@ -266,4 +302,71 @@ reportsRouter.get('/rounds/:id/judges/:judgeId/report', admin, async (req, res) 
     .sort((a, b) => a.candidate.number - b.candidate.number);
 
   res.json({ event: round.event, round: { id: round.id, name: round.name, kind: round.kind, status: round.status }, judge, criteria, rows });
+});
+
+// Several rounds combined: each round's score times its weight, added up. This is the total a cut like
+// "Basis of Top 5 = Gown and Deba Teh" ranks by, and what older tabulators printed as "Overall total
+// (all selected categories)".
+reportsRouter.get('/events/:eventId/reports/combined', admin, async (req, res) => {
+  const eventId = id.parse(req.params.eventId);
+  const query = z
+    .object({
+      groupValueId: z.coerce.number().int().positive().optional(),
+      roundIds: z.string().min(1),
+      weights: z.string().optional(),
+    })
+    .parse(req.query);
+  const givenIds = query.roundIds.split(',').map((s) => Number(s.trim()));
+  const givenWeights = (query.weights ?? '').split(',').map((s) => (s.trim() === '' ? NaN : Number(s.trim())));
+  if (givenIds.length === 0 || givenIds.some((n) => !Number.isInteger(n) || n <= 0)) return res.status(400).json({ error: 'Pick at least one round' });
+  if (givenIds.length !== new Set(givenIds).size) return res.status(400).json({ error: 'A round is picked twice' });
+  if (givenWeights.slice(0, givenIds.length).some((w) => !(w > 0))) return res.status(400).json({ error: 'Every weight must be above 0' });
+
+  const rounds = await prisma.round.findMany({
+    where: { id: { in: givenIds }, eventId },
+    orderBy: { order: 'asc' },
+    select: { id: true, name: true, kind: true, status: true },
+  });
+  if (rounds.length !== givenIds.length) return res.status(400).json({ error: 'A round is not part of this event' });
+  const weightById = new Map(givenIds.map((id, i) => [id, givenWeights[i] ?? 1]));
+
+  const entries = await prisma.roundEntry.findMany({
+    where: { roundId: { in: givenIds } },
+    select: { roundId: true, candidateId: true, score: true, candidate: { select: candidateSelect } },
+  });
+  const scoreOf = new Map(entries.filter((e) => e.score !== null).map((e) => [`${e.candidateId}:${e.roundId}`, Number(e.score)]));
+  const totals = new Map(
+    combineBasis(
+      rounds.map((r) => ({
+        weight: weightById.get(r.id)!,
+        scores: entries.filter((e) => e.roundId === r.id && e.score !== null).map((e) => ({ candidateId: e.candidateId, score: Number(e.score) })),
+      })),
+    ).map((c) => [c.candidateId, c.score]),
+  );
+
+  // One row per candidate who entered any of the selected rounds.
+  const byCandidate = new Map<number, CandidateRow>();
+  for (const e of entries) if (!byCandidate.has(e.candidateId)) byCandidate.set(e.candidateId, e.candidate);
+  const rows = [...byCandidate.values()]
+    .filter((c) => !query.groupValueId || c.groupValues.some((g) => g.groupValue.id === query.groupValueId))
+    .map((c) => ({
+      candidate: candidateDto(c),
+      withdrawn: c.status === 'WITHDRAWN',
+      scores: Object.fromEntries(rounds.map((r) => [r.id, scoreOf.get(`${c.id}:${r.id}`) ?? null])),
+      total: totals.get(c.id) ?? 0,
+    }));
+
+  const ranked = assignRanks(
+    rows.filter((r) => !r.withdrawn).map((r) => ({ candidateId: r.candidate.id, score: r.total })),
+    'desc',
+  );
+  const rankById = new Map(ranked.map((r) => [r.candidateId, r.rank]));
+  const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId }, select: { id: true, name: true, date: true, venue: true, testingMode: true } });
+  res.json({
+    event,
+    rounds: rounds.map((r) => ({ ...r, weight: weightById.get(r.id)! })),
+    rows: rows
+      .map((r) => ({ ...r, total: r2(r.total), rank: rankById.get(r.candidate.id) ?? null }))
+      .sort((a, b) => (a.withdrawn ? 1 : 0) - (b.withdrawn ? 1 : 0) || (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER) || a.candidate.number - b.candidate.number),
+  });
 });

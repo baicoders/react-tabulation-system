@@ -63,7 +63,31 @@ const roundBody = z.object({
   carryOverWeight: z.number().min(0).max(1).nullable().default(null),
   dropExtremes: z.boolean().default(false),
   tieBreak: z.enum(['SHARED_RANK', 'CATEGORY_SCORE', 'FIRST_PLACE_COUNT', 'ADMIN_DECIDES']).default('SHARED_RANK'),
+  // What the cut is based on: these rounds' scores, each times its weight ("Basis of Top 5 = Gown and
+  // Deba Teh"). A null sourceRoundId means this round itself. Empty or omitted: this round alone.
+  basis: z
+    .array(z.object({ sourceRoundId: z.number().int().positive().nullable(), weight: z.number().positive().max(10000).default(1) }))
+    .nullable()
+    .default(null),
 });
+
+type BasisItem = { sourceRoundId: number | null; weight: number };
+
+/** Saves a round's cut basis. Returns an error message when a source round does not fit. */
+async function replaceBasis(round: { id: number; eventId: number; order: number }, basis: BasisItem[]): Promise<string | null> {
+  const items = basis.map((b) => ({ sourceRoundId: b.sourceRoundId ?? round.id, weight: b.weight }));
+  const sourceIds = items.map((b) => b.sourceRoundId);
+  if (new Set(sourceIds).size !== sourceIds.length) return 'A round is listed twice in the cut basis';
+  const sources = await prisma.round.findMany({ where: { id: { in: sourceIds } } });
+  if (sources.length !== sourceIds.length || sources.some((s) => s.eventId !== round.eventId)) return 'A round in the cut basis is not part of this event';
+  const later = sources.find((s) => s.order > round.order);
+  if (later) return `The cut cannot be based on ${later.name}; it comes after this round`;
+  await prisma.$transaction([
+    prisma.roundBasis.deleteMany({ where: { roundId: round.id } }),
+    ...(items.length > 0 ? [prisma.roundBasis.createMany({ data: items.map((b) => ({ ...b, roundId: round.id })) })] : []),
+  ]);
+  return null;
+}
 
 setupRouter.get('/events/:eventId/rounds', async (req, res) => {
   const rounds = await prisma.round.findMany({
@@ -72,22 +96,36 @@ setupRouter.get('/events/:eventId/rounds', async (req, res) => {
     include: {
       _count: { select: { entries: true } },
       categories: { orderBy: { order: 'asc' }, include: { criteria: { orderBy: { order: 'asc' } } } },
+      basis: { select: { sourceRoundId: true, weight: true } },
     },
   });
-  res.json(rounds);
+  res.json(rounds.map((r) => ({ ...r, basis: r.basis.map((b) => ({ sourceRoundId: b.sourceRoundId, weight: Number(b.weight) })) })));
 });
 
 setupRouter.post('/events/:eventId/rounds', async (req, res) => {
   const eventId = id.parse(req.params.eventId);
-  const data = roundBody.parse(req.body);
+  const { basis, ...data } = roundBody.parse(req.body);
   const last = await prisma.round.aggregate({ where: { eventId }, _max: { order: true } });
   const round = await prisma.round.create({ data: { ...data, eventId, order: (last._max.order ?? 0) + 1 } });
+  const error = await replaceBasis(round, basis ?? []);
+  if (error) {
+    await prisma.round.delete({ where: { id: round.id } });
+    return res.status(400).json({ error });
+  }
   res.status(201).json(round);
 });
 
 setupRouter.patch('/rounds/:id', async (req, res) => {
-  const data = roundBody.partial().parse(req.body);
-  res.json(await prisma.round.update({ where: { id: id.parse(req.params.id) }, data }));
+  const { basis, ...data } = roundBody.partial().parse(req.body);
+  const round = await prisma.round.findUniqueOrThrow({
+    where: { id: id.parse(req.params.id) },
+    select: { id: true, eventId: true, order: true },
+  });
+  if (basis !== undefined) {
+    const error = await replaceBasis(round, basis ?? []);
+    if (error) return res.status(400).json({ error });
+  }
+  res.json(await prisma.round.update({ where: { id: round.id }, data }));
 });
 
 setupRouter.delete('/rounds/:id', async (req, res) => {

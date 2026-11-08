@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { api } from '../../api/client';
-import { METHOD_LABEL, TIE_LABEL, type Category, type Round, type RoundKind, type ScoreMethod, type TieBreak } from '../../api/types';
+import { METHOD_LABEL, TIE_LABEL, type Category, type Round, type RoundKind, type RoundSummary, type ScoreMethod, type TieBreak } from '../../api/types';
 import { useResource } from '../../hooks/useResource';
 import { plural } from '../../lib/format';
 import { useAdmin } from './AdminLayout';
@@ -41,6 +41,7 @@ export function RoundsPage() {
       {adding && (
         <RoundSettingsForm
           title="New round"
+          rounds={list}
           submitLabel="Add round"
           onCancel={() => setAdding(false)}
           onSubmit={async (body) => {
@@ -59,8 +60,8 @@ export function RoundsPage() {
       {rounds.data && list.length === 0 && !adding && <div className="empty">No rounds yet. Add the first round, for example the production number.</div>}
 
       <div className="stack">
-        {list.map((r) => (
-          <RoundPanel key={r.id} round={r} onChange={refresh} />
+        {list.map((r, i) => (
+          <RoundPanel key={r.id} round={r} rounds={list} isLast={i === list.length - 1} onChange={refresh} />
         ))}
       </div>
     </section>
@@ -75,17 +76,59 @@ interface RoundBody {
   carryOverWeight: number | null;
   dropExtremes: boolean;
   tieBreak: TieBreak;
+  basis: { sourceRoundId: number | null; weight: number }[] | null;
+}
+
+interface BasisChoice {
+  sourceRoundId: number | null;
+  name: string;
+  on: boolean;
+  weight: string;
+}
+
+/** What the cut is based on: this round's score, plus any earlier rounds' scores times their weights. */
+function CutBasisEditor({ choices, onChange }: { choices: BasisChoice[]; onChange: (next: BasisChoice[]) => void }) {
+  const set = (i: number, patch: Partial<BasisChoice>) => onChange(choices.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+  return (
+    <fieldset style={{ border: 'none', padding: 0, margin: '16px 0 0' }}>
+      <legend style={{ fontWeight: 600, marginBottom: 4 }}>What the cut is based on</legend>
+      <p className="muted" style={{ marginBottom: 8 }}>
+        By default the Top N are the best of this round alone. Tick earlier rounds to cut on a combined total — for example
+        “Basis of Top 5: Gown and Deba Teh”. Each score counts times its weight (scores run out of 100; a pair vote counts votes).
+      </p>
+      {choices.map((c, i) => (
+        <label key={c.sourceRoundId ?? 'self'} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+          <input type="checkbox" checked={c.on} onChange={(e) => set(i, { on: e.target.checked })} />
+          <span style={{ flex: 1 }}>{c.name}</span>
+          <span className="muted">×</span>
+          <input
+            className="input num"
+            style={{ width: 72 }}
+            type="number"
+            min={0.01}
+            step="any"
+            value={c.weight}
+            disabled={!c.on}
+            onChange={(e) => set(i, { weight: e.target.value })}
+            aria-label={`Weight for ${c.name}`}
+          />
+        </label>
+      ))}
+    </fieldset>
+  );
 }
 
 function RoundSettingsForm({
   title,
   initial,
+  rounds,
   submitLabel,
   onSubmit,
   onCancel,
 }: {
   title: string;
   initial?: Round;
+  rounds: RoundSummary[];
   submitLabel: string;
   onSubmit: (body: RoundBody) => Promise<void>;
   onCancel: () => void;
@@ -97,14 +140,36 @@ function RoundSettingsForm({
   const [carry, setCarry] = useState(initial?.carryOverWeight ? String(Math.round(initial.carryOverWeight * 100)) : '');
   const [dropExtremes, setDropExtremes] = useState(initial?.dropExtremes ?? false);
   const [tieBreak, setTieBreak] = useState<TieBreak>(initial?.tieBreak ?? 'SHARED_RANK');
+  // The cut's basis: this round's own score plus, optionally, earlier rounds' scores. A null sourceRoundId
+  // is this round; the server stores it against the round itself.
+  const [basis, setBasis] = useState<BasisChoice[]>(() => {
+    const earlier = rounds.filter((r) => r.id !== initial?.id && (initial ? r.order < initial.order : true));
+    const stored = new Map((initial?.basis ?? []).map((b) => [b.sourceRoundId, b.weight]));
+    const self = initial ? stored.get(initial.id) : undefined;
+    return [
+      { sourceRoundId: null, name: 'This round’s own score', on: initial ? self !== undefined : true, weight: self !== undefined ? String(self) : '1' },
+      ...earlier.map((r) => {
+        const weight = stored.get(r.id);
+        return { sourceRoundId: r.id, name: r.name, on: weight !== undefined, weight: weight !== undefined ? String(weight) : '1' };
+      }),
+    ];
+  });
   // Most rounds need only a name and a cut. The rest opens on request, or by itself when a round already uses it.
   const [more, setMore] = useState(
-    Boolean(initial && (initial.scoreMethod !== 'AVERAGE' || initial.carryOverWeight || initial.dropExtremes || initial.tieBreak !== 'SHARED_RANK')),
+    Boolean(
+      initial &&
+        (initial.scoreMethod !== 'AVERAGE' ||
+          initial.carryOverWeight ||
+          initial.dropExtremes ||
+          initial.tieBreak !== 'SHARED_RANK' ||
+          (initial.basis ?? []).length > 0),
+    ),
   );
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    const picked = basis.filter((c) => c.on).map((c) => ({ sourceRoundId: c.sourceRoundId, weight: Number(c.weight) > 0 ? Number(c.weight) : 1 }));
     try {
       await onSubmit({
         name,
@@ -114,6 +179,7 @@ function RoundSettingsForm({
         carryOverWeight: carry ? Number(carry) / 100 : null,
         dropExtremes,
         tieBreak,
+        basis: picked.length > 0 ? picked : null,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save');
@@ -137,48 +203,51 @@ function RoundSettingsForm({
         </label>
         <label className="field">
           <span>Top how many go on</span>
-          <input className="input num" type="number" min={1} value={advance} onChange={(e) => setAdvance(e.target.value)} placeholder="Leave empty for the final" />
+          <input className="input num" type="number" min={1} value={advance} onChange={(e) => setAdvance(e.target.value)} placeholder="Empty: final round, or decided by hand" />
         </label>
       </div>
-      {kind === 'SCORED' && more && (
-        <div className="form-row" style={{ marginTop: 16 }}>
-          <label className="field">
-            <span>Score method</span>
-            <select className="input" value={scoreMethod} onChange={(e) => setScoreMethod(e.target.value as ScoreMethod)}>
-              {Object.entries(METHOD_LABEL).map(([k, label]) => (
-                <option key={k} value={k}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Carry over from earlier rounds (%)</span>
-            <input className="input num" type="number" min={0} max={100} value={carry} onChange={(e) => setCarry(e.target.value)} placeholder="0, start fresh" />
-          </label>
-          <label className="field">
-            <span>Tie at the cut line</span>
-            <select className="input" value={tieBreak} onChange={(e) => setTieBreak(e.target.value as TieBreak)}>
-              {Object.entries(TIE_LABEL).map(([k, label]) => (
-                <option key={k} value={k}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+      {more && (
+        <>
+          {kind === 'SCORED' && (
+            <div className="form-row" style={{ marginTop: 16 }}>
+              <label className="field">
+                <span>Score method</span>
+                <select className="input" value={scoreMethod} onChange={(e) => setScoreMethod(e.target.value as ScoreMethod)}>
+                  {Object.entries(METHOD_LABEL).map(([k, label]) => (
+                    <option key={k} value={k}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Carry over from earlier rounds (%)</span>
+                <input className="input num" type="number" min={0} max={100} value={carry} onChange={(e) => setCarry(e.target.value)} placeholder="0, start fresh" />
+              </label>
+              <label className="field">
+                <span>Tie at the cut line</span>
+                <select className="input" value={tieBreak} onChange={(e) => setTieBreak(e.target.value as TieBreak)}>
+                  {Object.entries(TIE_LABEL).map(([k, label]) => (
+                    <option key={k} value={k}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+          <CutBasisEditor choices={basis} onChange={setBasis} />
+          {kind === 'SCORED' && (
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 16 }}>
+              <input type="checkbox" checked={dropExtremes} onChange={(e) => setDropExtremes(e.target.checked)} />
+              Drop each candidate's highest and lowest judge score (needs 5 or more judges)
+            </label>
+          )}
+        </>
       )}
-      {kind === 'SCORED' && more && (
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 16 }}>
-          <input type="checkbox" checked={dropExtremes} onChange={(e) => setDropExtremes(e.target.checked)} />
-          Drop each candidate's highest and lowest judge score (needs 5 or more judges)
-        </label>
-      )}
-      {kind === 'SCORED' && (
-        <button type="button" className="link-btn" style={{ marginTop: 16 }} onClick={() => setMore((m) => !m)}>
-          {more ? 'Fewer settings' : 'More settings: score method, carry-over, ties'}
-        </button>
-      )}
+      <button type="button" className="link-btn" style={{ marginTop: 16 }} onClick={() => setMore((m) => !m)}>
+        {more ? 'Fewer settings' : kind === 'SCORED' ? 'More settings: score method, carry-over, ties, cut basis' : 'More settings: what the cut is based on'}
+      </button>
       {error && <p className="error" style={{ marginTop: 12 }}>{error}</p>}
       <div className="form-actions">
         <button className="btn primary" type="submit">
@@ -192,13 +261,18 @@ function RoundSettingsForm({
   );
 }
 
-function RoundPanel({ round, onChange }: { round: Round; onChange: () => void }) {
+function RoundPanel({ round, rounds, isLast, onChange }: { round: Round; rounds: RoundSummary[]; isLast: boolean; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
+  // "Basis of Top 5: Gown and Deba Teh" - the rounds a cut is based on, when not this round alone.
+  const basisNames = (round.basis ?? [])
+    .filter((b) => b.sourceRoundId !== round.id || b.weight !== 1)
+    .map((b) => (b.sourceRoundId === round.id ? round.name : rounds.find((r) => r.id === b.sourceRoundId)?.name ?? 'a missing round'));
   const meta = [
-    round.advanceCount ? `Top ${round.advanceCount} go on` : 'Final round',
+    round.advanceCount ? `Top ${round.advanceCount} go on` : isLast ? 'Final round' : 'Cut decided by hand',
     round.kind === 'PAIR_VOTE' ? 'Pair vote' : METHOD_LABEL[round.scoreMethod],
     round.carryOverWeight ? `${Math.round(round.carryOverWeight * 100)}% carried over` : null,
     round.dropExtremes ? 'Highest and lowest dropped' : null,
+    basisNames.length > 0 ? `Cut on ${basisNames.join(' + ')}` : null,
   ].filter(Boolean);
 
   async function remove() {
@@ -212,6 +286,7 @@ function RoundPanel({ round, onChange }: { round: Round; onChange: () => void })
       <RoundSettingsForm
         title={`Edit ${round.name}`}
         initial={round}
+        rounds={rounds}
         submitLabel="Save round"
         onCancel={() => setEditing(false)}
         onSubmit={async (body) => {

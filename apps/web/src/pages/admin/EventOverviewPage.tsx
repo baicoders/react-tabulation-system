@@ -19,18 +19,58 @@ interface Rung {
   state: RungState;
 }
 
+interface Standing {
+  candidateId: number;
+  number: number;
+  name: string;
+  thumbUrl: string | null;
+  score: number | null;
+  rank: number | null;
+  withdrawn?: boolean;
+}
+
 interface Tabulation {
   round: { id: number; name: string; status: string; kind: string; advanceCount: number | null };
   entries: number;
   complete: boolean;
   judges: { id: number; name: string; required: number; scored: number; done: boolean }[];
-  standings: { candidateId: number; number: number; name: string; thumbUrl: string | null; score: number; rank: number }[];
+  standings: Standing[];
   direction: 'asc' | 'desc';
   advancingIds: number[];
   tieAtCutLine: number[];
+  /** The combined ranking the cut uses when it is based on more rounds than this one. */
+  basis: { sources: { roundId: number; name: string; weight: number; closed: boolean }[]; names: string[]; standings: Standing[] } | null;
+  adjustments: { id: number; candidateId: number; points: number; reason: string | null }[];
   pairs: PairTally[];
   pairTies: number[];
   unpaired: number;
+}
+
+interface FieldRow {
+  candidateId: number;
+  number: number;
+  name: string;
+  thumbUrl: string | null;
+  status: 'ACTIVE' | 'WITHDRAWN';
+  prevScore: number | null;
+  prevRank: number | null;
+  basisScore: number | null;
+  basisRank: number | null;
+}
+
+interface FieldData {
+  round: { id: number; name: string; order: number; status: string; kind: string; advanceCount: number | null };
+  editable: boolean;
+  previous: { id: number; name: string; closed: boolean; basisNames: string[] | null } | null;
+  entries: (FieldRow & { score: number | null; rank: number | null; advanced: boolean | null })[];
+  pool: FieldRow[];
+}
+
+interface AdjustmentRow {
+  id: number;
+  points: number;
+  reason: string | null;
+  candidate: { id: number; number: number; name: string };
 }
 
 interface PairSide {
@@ -139,6 +179,250 @@ function PairsPanel({
   );
 }
 
+/** The chip showing what the round before (or its cut basis) says about a candidate. */
+function FieldContext({ row }: { row: FieldRow }) {
+  const rank = row.basisRank ?? row.prevRank;
+  const score = row.basisRank !== null ? row.basisScore : row.prevScore;
+  if (rank === null) return <span className="muted">-</span>;
+  return (
+    <span className="num">
+      #{rank}
+      {score !== null ? ` (${score.toFixed(1)})` : ''}
+    </span>
+  );
+}
+
+/** Who competes in a round: the field the admin shapes by hand when a cut is not (only) decided by scores. */
+function FieldPanel({
+  data,
+  busy,
+  onAdd,
+  onRemove,
+}: {
+  data: FieldData;
+  busy: boolean;
+  onAdd: (candidateIds: number[]) => void;
+  onRemove: (candidateId: number) => void;
+}) {
+  const [picked, setPicked] = useState<number[]>([]);
+  const [search, setSearch] = useState('');
+  const trimmed = search.trim().toLowerCase();
+  const pool = data.pool.filter((c) => !trimmed || c.name.toLowerCase().includes(trimmed) || String(c.number) === trimmed);
+  const contextHeader = data.previous?.basisNames ? `Basis, ${data.previous.basisNames.join(' + ')}` : 'Round before';
+  const toggle = (candidateId: number) => setPicked((p) => (p.includes(candidateId) ? p.filter((x) => x !== candidateId) : [...p, candidateId]));
+
+  return (
+    <div className="panel">
+      <header>
+        <div>
+          <h2>Who competes in {data.round.name}</h2>
+          <p className="muted" style={{ marginTop: 4 }}>
+            {data.editable
+              ? `${plural(data.entries.length, 'candidate')} in. Shape the field by hand: a judges' choice, a draw by lot on stage, or a last-minute change.`
+              : `${plural(data.entries.length, 'candidate')}. This round is closed; reopen it to change the field.`}
+          </p>
+        </div>
+      </header>
+
+      {data.entries.length > 0 ? (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th className="n" style={{ width: 48 }}>No.</th>
+                <th>Candidate</th>
+                <th className="n">{contextHeader}</th>
+                {data.round.status === 'CLOSED' && <th className="n">Result</th>}
+                <th className="n">
+                  <span className="visually-hidden">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.entries.map((e) => (
+                <tr key={e.candidateId}>
+                  <td className="n">{e.number}</td>
+                  <td>
+                    <div className="identity">
+                      <CandidatePhoto src={e.thumbUrl} name={e.name} size={28} />
+                      <span>
+                        {e.name}
+                        {e.status === 'WITHDRAWN' && <span className="pill">Withdrew</span>}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="n"><FieldContext row={e} /></td>
+                  {data.round.status === 'CLOSED' && (
+                    <td className="n">{e.rank !== null ? `Rank ${e.rank}${e.score !== null ? `, ${e.score.toFixed(2)}` : ''}` : e.score !== null ? e.score.toFixed(2) : '-'}</td>
+                  )}
+                  <td className="n">
+                    {data.editable && (
+                      <button className="link-btn quiet" disabled={busy} onClick={() => onRemove(e.candidateId)}>
+                        Remove
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="empty">
+          {data.round.order === 1
+            ? 'Opening this round adds every candidate. Remove anyone who is not competing here.'
+            : `Nobody in ${data.round.name} yet. Add the candidates who go on from below.`}
+        </div>
+      )}
+
+      {data.editable && (
+        <div style={{ marginTop: 16 }}>
+          <div className="toolbar" style={{ padding: 0 }}>
+            <span className="section-title" style={{ marginBottom: 0 }}>Add to the field</span>
+            <span className="spacer" />
+            <input
+              className="input"
+              type="search"
+              style={{ width: 220 }}
+              placeholder="Find by name or number"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Find a candidate to add"
+            />
+            <button
+              className="btn"
+              disabled={busy || picked.length === 0}
+              onClick={() => {
+                onAdd(picked);
+                setPicked([]);
+              }}
+            >
+              Add {picked.length > 0 ? `${picked.length} ` : ''}selected
+            </button>
+          </div>
+          <div className="table-wrap" style={{ marginTop: 8 }}>
+            <table>
+              <thead>
+                <tr>
+                  <th className="n" style={{ width: 36 }}>
+                    <input
+                      type="checkbox"
+                      aria-label="Select everyone in the list"
+                      checked={pool.length > 0 && picked.length === pool.length}
+                      onChange={(e) => setPicked(e.target.checked ? pool.map((c) => c.candidateId) : [])}
+                    />
+                  </th>
+                  <th className="n" style={{ width: 48 }}>No.</th>
+                  <th>Candidate</th>
+                  <th className="n">{contextHeader}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pool.map((c) => (
+                  <tr key={c.candidateId}>
+                    <td className="n">
+                      <input type="checkbox" checked={picked.includes(c.candidateId)} onChange={() => toggle(c.candidateId)} aria-label={`Add ${c.name}`} />
+                    </td>
+                    <td className="n">{c.number}</td>
+                    <td>
+                      <div className="identity">
+                        <CandidatePhoto src={c.thumbUrl} name={c.name} size={28} />
+                        <span>
+                          {c.name}
+                          {c.status === 'WITHDRAWN' && <span className="pill">Withdrew</span>}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="n"><FieldContext row={c} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {pool.length === 0 && <div className="empty">Everyone matching is already in the field.</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Points added to or taken off scores after tabulation: guideline penalties and last-minute fixes. */
+function AdjustmentsPanel({
+  roundName,
+  rows,
+  entries,
+  busy,
+  onAdd,
+  onRemove,
+}: {
+  roundName: string;
+  rows: AdjustmentRow[];
+  entries: FieldData['entries'];
+  busy: boolean;
+  onAdd: (candidateId: number, points: number, reason: string) => void;
+  onRemove: (adjustmentId: number) => void;
+}) {
+  const [candidateId, setCandidateId] = useState('');
+  const [points, setPoints] = useState('');
+  const [reason, setReason] = useState('');
+
+  return (
+    <div className="panel">
+      <header>
+        <div>
+          <h2>Score adjustments in {roundName}</h2>
+          <p className="muted" style={{ marginTop: 4 }}>
+            Points added or taken off after tabulation — guideline penalties and last-minute fixes. They count at full value in
+            the round's score and its cut.
+          </p>
+        </div>
+      </header>
+      {rows.length > 0 && (
+        <div className="rows">
+          {rows.map((a) => (
+            <div className="row" key={a.id}>
+              <span className="grow">
+                No. {a.candidate.number} {a.candidate.name}
+                {a.reason && <span className="meta" style={{ display: 'block' }}>{a.reason}</span>}
+              </span>
+              <span className="num">{a.points > 0 ? `+${a.points}` : a.points}</span>
+              <button className="link-btn quiet" disabled={busy} onClick={() => onRemove(a.id)}>
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <form
+        className="toolbar"
+        style={{ padding: rows.length > 0 ? '8px 0 0' : 0 }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!candidateId || !points) return;
+          onAdd(Number(candidateId), Number(points), reason.trim());
+          setCandidateId('');
+          setPoints('');
+          setReason('');
+        }}
+      >
+        <select className="input" value={candidateId} onChange={(e) => setCandidateId(e.target.value)} aria-label="Candidate">
+          <option value="">Choose a candidate</option>
+          {entries.map((en) => (
+            <option key={en.candidateId} value={en.candidateId}>
+              No. {en.number} {en.name}
+            </option>
+          ))}
+        </select>
+        <input className="input num" style={{ width: 88 }} type="number" step="any" placeholder="Points" value={points} onChange={(e) => setPoints(e.target.value)} aria-label="Points to add or take off" />
+        <input className="input" style={{ width: 240 }} placeholder="Reason (shown on reports)" value={reason} onChange={(e) => setReason(e.target.value)} aria-label="Reason" />
+        <button className="btn" type="submit" disabled={busy || !candidateId || !points}>
+          Add adjustment
+        </button>
+      </form>
+    </div>
+  );
+}
+
 /** Each round's field: its real entries once filled, otherwise the Top N the previous round sends on. */
 function buildLadder(event: EventDetail): Rung[] {
   let carried = event._count.candidates;
@@ -151,6 +435,11 @@ function buildLadder(event: EventDetail): Rung[] {
   });
 }
 
+/** "Top 8 go on", "Final", or "Decided by hand" for a round whose cut is not a computed Top N. */
+function cutLabel(round: RoundSummary, isLast: boolean): string {
+  return round.advanceCount ? `Top ${round.advanceCount} go on` : isLast ? 'Final' : 'Decided by hand';
+}
+
 const STATE_LABEL: Record<RungState, string> = { current: 'Open now', done: 'Closed', ready: 'Ready to open', planned: 'Not started' };
 
 export function EventOverviewPage() {
@@ -158,6 +447,11 @@ export function EventOverviewPage() {
   const ladder = event ? buildLadder(event) : [];
   const open = ladder.find((r) => r.state === 'current');
   const tab = useResource<Tabulation>(open ? `/rounds/${open.round.id}/tabulation` : null);
+  // The field of the round that can still be shaped: the open one, or the next one before it starts.
+  const upcoming = !open ? ladder.find((r, i) => r.state !== 'done' && (i === 0 || ladder[i - 1].state === 'done')) : undefined;
+  const fieldRung = open ?? upcoming;
+  const field = useResource<FieldData>(fieldRung ? `/rounds/${fieldRung.round.id}/field` : null);
+  const adjustments = useResource<AdjustmentRow[]>(open ? `/rounds/${open.round.id}/adjustments` : null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -174,6 +468,8 @@ export function EventOverviewPage() {
     reloadEvent();
     reloadEvents();
     tab.reload();
+    field.reload();
+    adjustments.reload();
     setUpdatedAt(new Date());
   });
   const live = useLiveUpdates(event?.id, (notice) => (notice.type === 'round' || notice.type === 'event' ? refreshAll() : refreshScores()));
@@ -207,6 +503,8 @@ export function EventOverviewPage() {
       reloadEvent();
       reloadEvents();
       tab.reload();
+      field.reload();
+      adjustments.reload();
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         const tieIds = err.body.tie;
@@ -230,7 +528,9 @@ export function EventOverviewPage() {
       setMessage(
         res.nextRound && open.round.advanceCount
           ? `${open.round.name} is closed. ${res.advanced} candidates go on to ${res.nextRound.name}.`
-          : `${open.round.name} is closed.`,
+          : res.nextRound
+            ? `${open.round.name} is closed. Choose who goes on to ${res.nextRound.name} by hand, in Who competes below.`
+            : `${open.round.name} is closed.`,
       );
     });
   const reopen = (r: RoundSummary) => {
@@ -366,7 +666,7 @@ export function EventOverviewPage() {
                     <span className="rung-count">
                       {field}
                       {!actual && <span className="visually-hidden"> planned</span>}
-                      <span className="sub">{round.advanceCount ? `Top ${round.advanceCount} go on` : 'Final'}</span>
+                      <span className="sub">{cutLabel(round, round.id === ladder[ladder.length - 1]?.round.id)}</span>
                     </span>
                   </li>
                 ))}
@@ -395,8 +695,12 @@ export function EventOverviewPage() {
                   <span className="muted">
                     {t?.complete
                       ? open.round.kind === 'PAIR_VOTE'
-                        ? `Sends the ${cut ?? open.field} pair winners on.`
-                        : `Ranks the field and sends the Top ${cut ?? open.field} on.`
+                        ? cut
+                          ? `Sends the ${cut} pair winners on.`
+                          : 'Ranks the pairs. Who goes on is decided by hand.'
+                        : cut
+                          ? `Ranks the field and sends the Top ${cut} on.`
+                          : 'Ranks the field. Who goes on is decided by hand.'
                       : open.round.kind === 'PAIR_VOTE' && t && t.pairs.length === 0
                         ? 'Set the pairs first.'
                         : t && t.pairTies.length > 0
@@ -477,15 +781,18 @@ export function EventOverviewPage() {
                         const cutAfter = cut !== null && i === t.advancingIds.length - 1 && i < shown.length - 1;
                         return (
                           <tr key={s.candidateId} style={cutAfter ? { borderBottom: '2px dashed var(--control)' } : undefined}>
-                            <td className="n">{s.rank}</td>
+                            <td className="n">{s.rank ?? '-'}</td>
                             <td className="n">{s.number}</td>
                             <td>
                               <div className="identity">
                                 <CandidatePhoto src={s.thumbUrl} name={s.name} size={28} />
-                                <span>{s.name}</span>
+                                <span>
+                                  {s.name}
+                                  {s.withdrawn && <span className="pill">Withdrew</span>}
+                                </span>
                               </div>
                             </td>
-                            <td className="n">{s.score.toFixed(2)}</td>
+                            <td className="n">{s.score === null ? '-' : s.score.toFixed(2)}</td>
                           </tr>
                         );
                       })}
@@ -495,6 +802,77 @@ export function EventOverviewPage() {
                 </div>
               )}
             </div>
+          )}
+          {t?.basis && (
+            <div className="panel">
+              <header>
+                <div>
+                  <h2>{cut ? `Basis for the Top ${cut} cut` : 'Combined ranking'}</h2>
+                  <p className="muted" style={{ marginTop: 4 }}>
+                    {t.basis.names.join(' + ')}
+                    {t.basis.sources.some((s) => !s.closed && s.roundId !== t.round.id) && ' — a round in the basis is not closed yet'}
+                    {'. Each score times its weight, added up.'}
+                  </p>
+                </div>
+              </header>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th className="n" style={{ width: 48 }}>Rank</th>
+                      <th className="n" style={{ width: 48 }}>No.</th>
+                      <th>Candidate</th>
+                      <th className="n">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {t.basis.standings.slice(0, cut ? cut + 3 : 12).map((s, i) => (
+                      <tr key={s.candidateId} style={cut !== null && i === cut - 1 ? { borderBottom: '2px dashed var(--control)' } : undefined}>
+                        <td className="n">{s.rank ?? '-'}</td>
+                        <td className="n">{s.number}</td>
+                        <td>
+                          <div className="identity">
+                            <CandidatePhoto src={s.thumbUrl} name={s.name} size={28} />
+                            <span>{s.name}</span>
+                          </div>
+                        </td>
+                        <td className="n">{s.score === null ? '-' : s.score.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {cut !== null && <p className="meta" style={{ marginTop: 8 }}>The dashed line is the Top {cut} cut.</p>}
+              </div>
+            </div>
+          )}
+
+          {open && t && (
+            <AdjustmentsPanel
+              roundName={open.round.name}
+              rows={adjustments.data ?? []}
+              entries={field.data?.entries ?? []}
+              busy={busy}
+              onAdd={(candidateId, points, reason) =>
+                run(
+                  () => api(`/rounds/${open.round.id}/adjustments`, { method: 'POST', body: JSON.stringify({ candidateId, points, reason: reason || undefined }) }),
+                  'Adjustment saved. It counts from the next tabulation.',
+                )
+              }
+              onRemove={(adjustmentId) => run(() => api(`/adjustments/${adjustmentId}`, { method: 'DELETE' }), 'Adjustment removed.')}
+            />
+          )}
+
+          {field.data && (
+            <FieldPanel
+              data={field.data}
+              busy={busy}
+              onAdd={(candidateIds) => run(() => api(`/rounds/${field.data!.round.id}/entries`, { method: 'POST', body: JSON.stringify({ candidateIds }) }), 'Field updated.')}
+              onRemove={(candidateId) => {
+                const row = field.data!.entries.find((e) => e.candidateId === candidateId);
+                if (!confirm(`Remove No. ${row?.number} ${row?.name} from ${field.data!.round.name}?`)) return;
+                void run(() => api(`/rounds/${field.data!.round.id}/entries/${candidateId}`, { method: 'DELETE' }), 'Field updated.');
+              }}
+            />
           )}
         </div>
 

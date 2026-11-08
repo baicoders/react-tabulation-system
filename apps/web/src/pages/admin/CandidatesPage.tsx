@@ -16,6 +16,7 @@ interface Candidate {
   name: string;
   thumbUrl: string | null;
   photoUrl: string | null;
+  status: 'ACTIVE' | 'WITHDRAWN';
   groups: { id: number; name: string; groupId: number }[];
 }
 
@@ -52,6 +53,19 @@ export function CandidatesPage() {
       reload();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Upload failed');
+    }
+  }
+
+  // A withdrawn candidate stays in every record and report, out of the ranks and the cuts.
+  async function onToggleStatus(c: Candidate) {
+    const withdrawing = c.status !== 'WITHDRAWN';
+    if (withdrawing && !confirm(`Withdraw No. ${c.number} ${c.name}? They stay in the records and reports, but out of the ranks and the cuts.`)) return;
+    try {
+      await api(`/candidates/${c.id}`, { method: 'PATCH', body: JSON.stringify({ status: withdrawing ? 'WITHDRAWN' : 'ACTIVE' }) });
+      setMessage(null);
+      reload();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Could not change this candidate’s status');
     }
   }
 
@@ -149,7 +163,10 @@ export function CandidatesPage() {
                   <div className="identity">
                     <CandidatePhoto src={c.thumbUrl} name={c.name} size={40} />
                     <span>
-                      <span className="name">{c.name}</span>
+                      <span className="name">
+                        {c.name}
+                        {c.status === 'WITHDRAWN' && <span className="pill">Withdrew</span>}
+                      </span>
                       {c.groups.length > 0 && <span className="sub phone-only">{c.groups.map((g) => g.name).join(' · ')}</span>}
                     </span>
                   </div>
@@ -160,6 +177,9 @@ export function CandidatesPage() {
                   </td>
                 ))}
                 <td className="n">
+                  <button className="link-btn quiet" style={{ marginRight: 12 }} onClick={() => onToggleStatus(c)}>
+                    {c.status === 'WITHDRAWN' ? 'Restore' : 'Withdraw'}
+                  </button>
                   <label className="link-btn" style={{ cursor: 'pointer' }}>
                     {c.thumbUrl ? 'Replace' : 'Upload'}
                     <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => onUpload(c.id, e.target.files?.[0])} />

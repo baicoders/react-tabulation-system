@@ -22,6 +22,7 @@ interface ReportCandidate {
   id: number;
   number: number;
   name: string;
+  status: 'ACTIVE' | 'WITHDRAWN';
   thumbUrl: string | null;
   groups: { id: number; name: string; groupId: number }[];
 }
@@ -101,23 +102,6 @@ function useSheetMeta(event: EventDetail) {
 }
 
 /** Signature lines for printed results. */
-function Signatures({ names, label }: { names: string[]; label: string }) {
-  if (names.length === 0) return null;
-  return (
-    <div className="signatures print-only">
-      <p className="meta">{label}</p>
-      <div className="signature-grid">
-        {names.map((n) => (
-          <div key={n} className="signature">
-            <span className="signature-line" />
-            <span>{n}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function Loading({ error, retry }: { error: string | null; retry: () => void }) {
   return error ? (
     <p className="error">
@@ -134,7 +118,7 @@ interface OverallData {
   finalRound: { id: number; name: string; closed: boolean } | null;
   rows: {
     candidate: ReportCandidate;
-    position: number;
+    position: number | null;
     title: string | null;
     reached: { id: number; name: string; kind: 'SCORED' | 'PAIR_VOTE'; closed: boolean } | null;
     roundRank: number | null;
@@ -146,7 +130,6 @@ export function OverallReport({ event, params, set, version }: ViewProps) {
   const meta = useSheetMeta(event);
   const group = params.get('group');
   const data = useResource<OverallData>(live(`/events/${event.id}/reports/overall${group ? `?groupValueId=${group}` : ''}`, version));
-  const judges = useResource<{ name: string }[]>(`/events/${event.id}/judges`);
   const scope = groupLabel(event.groups, group);
   const title = scope ? `Overall ranking, ${scope}` : 'Overall ranking';
   const d = data.data;
@@ -188,14 +171,17 @@ export function OverallReport({ event, params, set, version }: ViewProps) {
               </thead>
               <tbody>
                 {d.rows.map((r) => (
-                  <tr key={r.candidate.id} className={r.title ? 'titled' : undefined}>
-                    <td className="n">{r.position}</td>
+                  <tr key={r.candidate.id} className={r.title ? 'titled' : r.candidate.status === 'WITHDRAWN' ? 'muted' : undefined}>
+                    <td className="n">{r.position ?? '-'}</td>
                     <td className="n wide-only">{r.candidate.number}</td>
                     <td>
                       <div className="identity">
                         <CandidatePhoto src={r.candidate.thumbUrl} name={r.candidate.name} size={32} />
                         <span>
-                          <span className="name">{r.candidate.name}</span>
+                          <span className="name">
+                            {r.candidate.name}
+                            {r.candidate.status === 'WITHDRAWN' && <span className="pill">Withdrew</span>}
+                          </span>
                           {r.title && <span className="title-tag">{r.title}</span>}
                           <span className="sub">{groupNames(r.candidate)}</span>
                           <span className="sub narrow-only">
@@ -217,7 +203,6 @@ export function OverallReport({ event, params, set, version }: ViewProps) {
             </table>
           </div>
           {d.rows.length === 0 && <div className="empty">No candidates in this group.</div>}
-          <Signatures names={(judges.data ?? []).map((j) => j.name).concat('Tabulator')} label="Certified by the board of judges and the tabulator" />
         </>
       )}
     </>
@@ -233,10 +218,13 @@ interface RoundData {
   judges: number;
   rows: {
     candidate: ReportCandidate;
+    withdrawn: boolean;
     categories: Record<number, number | null>;
     score: number | null;
     rank: number | null;
     position: number | null;
+    adjustment: number | null;
+    adjustmentReasons: string | null;
     advanced: boolean | null;
     pair: { opponent: { number: number; name: string }; votesFor: number; votesAgainst: number; won: boolean } | null;
   }[];
@@ -277,12 +265,13 @@ export function RoundReport({ event, params, set, version }: ViewProps) {
   function excel() {
     if (!d) return;
     const head: Cell[] = isPair
-      ? [scope ? 'Place in group' : 'Rank', 'No.', 'Candidate', 'Groups', 'Against', 'Votes for', 'Votes against', 'Won pair', 'Went on']
-      : [scope ? 'Place in group' : 'Rank', 'No.', 'Candidate', 'Groups', ...d.categories.map((c) => c.name), 'Score', 'Went on'];
+      ? [scope ? 'Place in group' : 'Rank', 'No.', 'Candidate', 'Groups', 'Against', 'Votes for', 'Votes against', 'Won pair', 'Adjustment', 'Reason', 'Went on']
+      : [scope ? 'Place in group' : 'Rank', 'No.', 'Candidate', 'Groups', ...d.categories.map((c) => c.name), 'Score', 'Adjustment', 'Reason', 'Went on'];
+    const wentOn = (r: (typeof d.rows)[number]) => (r.withdrawn ? 'Withdrew' : r.advanced === null ? null : r.advanced ? 'Yes' : 'No');
     const rows = d.rows.map((r): Cell[] =>
       isPair
-        ? [r.position, r.candidate.number, r.candidate.name, groupNames(r.candidate), r.pair ? `No. ${r.pair.opponent.number} ${r.pair.opponent.name}` : null, r.pair?.votesFor ?? null, r.pair?.votesAgainst ?? null, r.pair ? (r.pair.won ? 'Yes' : 'No') : null, r.advanced === null ? null : r.advanced ? 'Yes' : 'No']
-        : [r.position, r.candidate.number, r.candidate.name, groupNames(r.candidate), ...d.categories.map((c) => r.categories[c.id]), r.score, r.advanced === null ? null : r.advanced ? 'Yes' : 'No'],
+        ? [r.position, r.candidate.number, r.candidate.name, groupNames(r.candidate), r.pair ? `No. ${r.pair.opponent.number} ${r.pair.opponent.name}` : null, r.pair?.votesFor ?? null, r.pair?.votesAgainst ?? null, r.pair ? (r.pair.won ? 'Yes' : 'No') : null, r.adjustment, r.adjustmentReasons, wentOn(r)]
+        : [r.position, r.candidate.number, r.candidate.name, groupNames(r.candidate), ...d.categories.map((c) => r.categories[c.id]), r.score, r.adjustment, r.adjustmentReasons, wentOn(r)],
     );
     downloadExcel(`${event.name} ${title}`, round!.name, [head, ...rows], meta(title, `${d.judgesSubmitted} of ${d.judges} judges submitted`));
   }
@@ -310,6 +299,15 @@ export function RoundReport({ event, params, set, version }: ViewProps) {
       {!d ? (
         <Loading error={data.error} retry={data.reload} />
       ) : (
+        <RoundReportTable d={d} isPair={isPair ?? false} scope={scope} />
+      )}
+    </>
+  );
+}
+
+function RoundReportTable({ d, isPair, scope }: { d: RoundData; isPair: boolean; scope: string | null }) {
+  const hasAdjustments = d.rows.some((r) => r.adjustment !== null);
+  return (
         <div className="table-wrap">
           <table className="report-table">
             <thead>
@@ -333,19 +331,23 @@ export function RoundReport({ event, params, set, version }: ViewProps) {
                     <th className="n">Score</th>
                   </>
                 )}
+                {hasAdjustments && <th className="n">Adjustment</th>}
                 <th>Result</th>
               </tr>
             </thead>
             <tbody>
               {d.rows.map((r) => (
-                <tr key={r.candidate.id}>
+                <tr key={r.candidate.id} className={r.withdrawn ? 'muted' : undefined}>
                   <td className="n">{r.position ?? '-'}</td>
                   <td className="n wide-only">{r.candidate.number}</td>
                   <td>
                     <div className="identity">
                       <CandidatePhoto src={r.candidate.thumbUrl} name={r.candidate.name} size={32} />
                       <span>
-                        <span className="name">{r.candidate.name}</span>
+                        <span className="name">
+                          {r.candidate.name}
+                          {r.withdrawn && <span className="pill">Withdrew</span>}
+                        </span>
                         <span className="sub">{groupNames(r.candidate)}</span>
                         <span className="sub narrow-only">No. {r.candidate.number}</span>
                       </span>
@@ -367,14 +369,22 @@ export function RoundReport({ event, params, set, version }: ViewProps) {
                       <td className="n">{fmt(r.score)}</td>
                     </>
                   )}
-                  <td>{r.advanced === true ? <span className="pill pos">Went on</span> : r.advanced === false ? <span className="muted">Out</span> : isPair && r.pair?.won ? 'Won pair' : '-'}</td>
+                  {hasAdjustments && (
+                    <td className="n">
+                      {r.adjustment !== null && (
+                        <>
+                          {r.adjustment > 0 ? `+${r.adjustment}` : r.adjustment}
+                          {r.adjustmentReasons && <span className="sub">{r.adjustmentReasons}</span>}
+                        </>
+                      )}
+                    </td>
+                  )}
+                  <td>{r.withdrawn ? <span className="muted">Withdrew</span> : r.advanced === true ? <span className="pill pos">Went on</span> : r.advanced === false ? <span className="muted">Out</span> : isPair && r.pair?.won ? 'Won pair' : '-'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      )}
-    </>
   );
 }
 
@@ -628,7 +638,155 @@ export function JudgeReport({ event, params, set, version }: ViewProps) {
               </tbody>
             </table>
           </div>
-          <Signatures names={[d.judge.name]} label="I confirm these are the scores I gave" />
+        </>
+      )}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ combined score */
+
+interface CombinedData {
+  rounds: { id: number; name: string; kind: 'SCORED' | 'PAIR_VOTE'; status: string; weight: number }[];
+  rows: {
+    candidate: ReportCandidate;
+    withdrawn: boolean;
+    scores: Record<number, number | null>;
+    total: number;
+    rank: number | null;
+  }[];
+}
+
+/**
+ * Several rounds combined: each round's score times its weight, added up. This is the total a cut like
+ * "Basis of Top 5: Gown and Deba Teh" ranks by, and what older tabulators printed as "Overall total (all
+ * selected categories)".
+ */
+export function CombinedReport({ event, params, set, version }: ViewProps) {
+  const meta = useSheetMeta(event);
+  const group = params.get('group');
+  const closed = event.rounds.filter((r) => r.status === 'CLOSED');
+  const pickedParam = params.get('rounds');
+  const pickedIds = pickedParam ? pickedParam.split(',').filter(Boolean) : closed.map((r) => String(r.id));
+  const chosen = closed.filter((r) => pickedIds.includes(String(r.id)));
+  const weights = (params.get('weights') ?? '').split(',');
+  const weightFor = (i: number) => (weights[i] && Number(weights[i]) > 0 ? weights[i] : '1');
+
+  const query = chosen.length > 0 ? `roundIds=${chosen.map((r) => r.id).join(',')}&weights=${chosen.map((_, i) => weightFor(i)).join(',')}${group ? `&groupValueId=${group}` : ''}` : null;
+  const data = useResource<CombinedData>(query ? live(`/events/${event.id}/reports/combined?${query}`, version) : null);
+  const d = data.data && data.data.rounds.map((r) => r.id).join() === chosen.map((r) => r.id).join() ? data.data : null;
+  const scope = groupLabel(event.groups, group);
+  const title = chosen.length > 0 ? `Combined: ${chosen.map((r) => r.name).join(' + ')}${scope ? `, ${scope}` : ''}` : 'Combined score';
+
+  const toggleRound = (id: number) => {
+    const next = pickedIds.includes(String(id)) ? pickedIds.filter((x) => x !== String(id)) : [...pickedIds, String(id)];
+    const ordered = closed.filter((r) => next.includes(String(r.id))).map((r) => String(r.id));
+    set({ rounds: ordered.length === closed.length ? null : ordered.join(','), weights: null });
+  };
+  const setWeight = (idx: number, value: string) => {
+    const next = chosen.map((_, i) => (i === idx ? value : weightFor(i)));
+    set({ weights: next.every((w) => w === '1') ? null : next.join(',') });
+  };
+
+  function excel() {
+    if (!d) return;
+    const head: Cell[] = ['Place', 'No.', 'Candidate', 'Groups', ...d.rounds.map((r) => (r.weight === 1 ? r.name : `${r.name} × ${r.weight}`)), 'Total'];
+    const rows = d.rows.map((r): Cell[] => [r.rank, r.candidate.number, r.candidate.name, groupNames(r.candidate), ...d.rounds.map((rd) => r.scores[rd.id]), r.total]);
+    downloadExcel(`${event.name} ${title}`, 'Combined', [head, ...rows], meta(title, 'Each round score times its weight, added up'));
+  }
+
+  return (
+    <>
+      <ReportHead
+        event={event}
+        title={title}
+        sub={
+          chosen.length === 0
+            ? 'Pick the rounds to combine.'
+            : `Each round's score times its weight, added up${chosen.some((_, i) => weightFor(i) !== '1') ? ' (weights shown)' : ''}. ${
+                d ? `${d.rows.filter((r) => !r.withdrawn).length} candidates ranked.` : ''
+              }`
+        }
+        controls={
+          <>
+            {closed.map((r) => {
+              const idx = chosen.findIndex((c) => c.id === r.id);
+              return (
+                <label key={r.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="checkbox" checked={idx >= 0} onChange={() => toggleRound(r.id)} />
+                  {r.name}
+                  {idx >= 0 && chosen.length > 1 && (
+                    <input
+                      className="input num"
+                      style={{ width: 60 }}
+                      type="number"
+                      min={0.01}
+                      step="any"
+                      value={weightFor(idx)}
+                      onChange={(e) => setWeight(idx, e.target.value)}
+                      aria-label={`Weight for ${r.name}`}
+                    />
+                  )}
+                </label>
+              );
+            })}
+            <GroupSelect groups={event.groups} value={group} onChange={(v) => set({ group: v })} />
+          </>
+        }
+        onExcel={excel}
+        disabled={!d}
+      />
+      {closed.length === 0 ? (
+        <div className="empty">Nothing to combine yet: rounds appear here once they are closed.</div>
+      ) : chosen.length === 0 ? (
+        <div className="empty no-print">Tick the rounds whose scores should add up.</div>
+      ) : !d ? (
+        <Loading error={data.error} retry={data.reload} />
+      ) : (
+        <>
+          <div className="table-wrap">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th className="n" style={{ width: 56 }}>Place</th>
+                  <th className="n wide-only" style={{ width: 48 }}>No.</th>
+                  <th>Candidate</th>
+                  {d.rounds.map((r) => (
+                    <th key={r.id} className="n">
+                      {r.name}
+                      {r.weight !== 1 && <span className="sub">× {r.weight}</span>}
+                    </th>
+                  ))}
+                  <th className="n">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {d.rows.map((r) => (
+                  <tr key={r.candidate.id} className={r.withdrawn ? 'muted' : undefined}>
+                    <td className="n">{r.rank ?? '-'}</td>
+                    <td className="n wide-only">{r.candidate.number}</td>
+                    <td>
+                      <div className="identity">
+                        <CandidatePhoto src={r.candidate.thumbUrl} name={r.candidate.name} size={32} />
+                        <span>
+                          <span className="name">
+                            {r.candidate.name}
+                            {r.withdrawn && <span className="pill">Withdrew</span>}
+                          </span>
+                          <span className="sub">{groupNames(r.candidate)}</span>
+                          <span className="sub narrow-only">No. {r.candidate.number}</span>
+                        </span>
+                      </div>
+                    </td>
+                    {d.rounds.map((rd) => (
+                      <td key={rd.id} className="n">{fmt(r.scores[rd.id])}</td>
+                    ))}
+                    <td className="n">{r.total.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </>

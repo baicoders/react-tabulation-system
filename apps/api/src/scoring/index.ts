@@ -79,6 +79,30 @@ export function applyCarryOver(current: CandidateScore[], earlier: CandidateScor
   });
 }
 
+/**
+ * Points added to or taken off a candidate's score after tabulation (guideline penalties, last-minute
+ * fixes). Counts at full value in the round's score and, with its weight, in any cut basis.
+ */
+export function applyAdjustments(results: CandidateScore[], adjustments: { candidateId: number; points: number }[]): CandidateScore[] {
+  const byId = new Map<number, number>();
+  for (const a of adjustments) byId.set(a.candidateId, (byId.get(a.candidateId) ?? 0) + a.points);
+  return results.map(({ candidateId, score }) => ({ candidateId, score: score + (byId.get(candidateId) ?? 0) }));
+}
+
+/**
+ * A cut basis: each source round's score times its weight, added up ("Basis of Top 5 = Gown and Deba Teh").
+ * Scores run out of 100, so equal weights mean equal shares; a round the candidate missed contributes
+ * nothing. Adjustments are already inside each round's score.
+ */
+export function combineBasis(sources: { weight: number; scores: CandidateScore[] }[]): CandidateScore[] {
+  if (sources.some((s) => s.weight <= 0)) throw new RangeError('basis weights must be above 0');
+  const totals = new Map<number, number>();
+  for (const { weight, scores } of sources) {
+    for (const { candidateId, score } of scores) totals.set(candidateId, (totals.get(candidateId) ?? 0) + weight * score);
+  }
+  return [...totals].map(([candidateId, score]) => ({ candidateId, score }));
+}
+
 /** Competition ranking: equal scores share a rank and the next rank is skipped (1, 1, 3). */
 export function assignRanks(scores: CandidateScore[], direction: Direction): RankedCandidate[] {
   const sorted = [...scores].sort((a, b) => (direction === 'desc' ? b.score - a.score : a.score - b.score));

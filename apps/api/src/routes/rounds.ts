@@ -1,6 +1,8 @@
 import { randomInt } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
+import { pictureUrls } from '../lib/images';
+import { loadBasis } from '../lib/cut';
 import { prisma } from '../lib/prisma';
 import { publish } from '../lib/live';
 import { tabulateRound } from '../lib/tabulate';
@@ -60,6 +62,9 @@ roundsRouter.post('/rounds/:id/close', admin, async (req, res) => {
       tie: tab.tieAtCutLine,
     });
   }
+  // A cut based on earlier rounds can only be decided once they are all closed.
+  const openSource = (await loadBasis(roundId)).find((s) => s.roundId !== roundId && !s.closed);
+  if (openSource) return res.status(409).json({ error: `This cut is based on ${openSource.name}. Close ${openSource.name} first.` });
 
   const round = await prisma.round.findUniqueOrThrow({ where: { id: roundId } });
   const advancing = new Set(tab.advancingIds);
@@ -77,9 +82,10 @@ roundsRouter.post('/rounds/:id/close', admin, async (req, res) => {
       ? [prisma.roundEntry.createMany({ data: tab.advancingIds.map((candidateId) => ({ roundId: next.id, candidateId })), skipDuplicates: true })]
       : []),
   ]);
-  await audit(round.eventId, req.user!.name, 'round.close', { roundId, name: round.name, advanced: tab.advancingIds.length, includeTies });
+  await audit(round.eventId, req.user!.name, 'round.close', { roundId, name: round.name, advanced: round.advanceCount ? tab.advancingIds.length : 0, includeTies });
   publish(round.eventId, { type: 'round', roundId: round.id });
-  res.json({ closed: true, advanced: tab.advancingIds.length, nextRound: next ? { id: next.id, name: next.name } : null });
+  // A hand-decided cut sends nobody on automatically; the admin fills the next round's field.
+  res.json({ closed: true, advanced: round.advanceCount ? tab.advancingIds.length : 0, nextRound: next ? { id: next.id, name: next.name } : null });
 });
 
 // Undo a close: the round opens again, its results are cleared and the next round empties if it has not started.
@@ -186,3 +192,177 @@ roundsRouter.post('/rounds/:id/pairs', admin, async (req, res) => {
   publish(round.eventId, { type: 'round', roundId: round.id });
   res.json(await tabulateRound(round.id));
 });
+
+// Who competes in a round, with what the round before says about everyone else. The admin edits the
+// field by hand for cuts scores alone cannot decide: a judges' choice, a draw by lot on stage, or a
+// last-minute change. Closing a round fills the next one; this shapes that list exactly.
+roundsRouter.get('/rounds/:id/field', admin, async (req, res) => {
+  const roundId = id.parse(req.params.id);
+  const round = await prisma.round.findUniqueOrThrow({
+    where: { id: roundId },
+    include: {
+      event: { select: { id: true } },
+      entries: { include: { candidate: { select: { id: true, number: true, name: true, picturePath: true, status: true } } } },
+    },
+  });
+  const previous = await prisma.round.findFirst({
+    where: { eventId: round.eventId, order: { lt: round.order } },
+    orderBy: { order: 'desc' },
+    include: { entries: { select: { candidateId: true, score: true, rank: true, advanced: true } } },
+  });
+  // The previous round's combined cut ranking, when its cut is based on more rounds than itself.
+  const prevTab = previous && previous.status === 'CLOSED' ? await tabulateRound(previous.id) : null;
+  const prevByCandidate = new Map((previous?.entries ?? []).map((e) => [e.candidateId, e]));
+  const basisByCandidate = new Map((prevTab?.basis?.standings ?? []).map((s) => [s.candidateId, s]));
+  const inRound = new Set(round.entries.map((e) => e.candidateId));
+  const all = await prisma.candidate.findMany({
+    where: { eventId: round.eventId },
+    orderBy: { number: 'asc' },
+    select: { id: true, number: true, name: true, picturePath: true, status: true },
+  });
+  const dto = (c: { id: number; number: number; name: string; picturePath: string | null; status: string }) => ({
+    candidateId: c.id,
+    number: c.number,
+    name: c.name,
+    thumbUrl: pictureUrls(c.picturePath).thumbUrl,
+    status: c.status,
+  });
+  // What the round before says about a candidate: its result there, and the cut basis ranking when the
+  // cut is based on more rounds than that.
+  const context = (candidateId: number) => {
+    const prev = prevByCandidate.get(candidateId);
+    const basis = basisByCandidate.get(candidateId);
+    return {
+      prevScore: prev && prev.score !== null ? Number(prev.score) : null,
+      prevRank: prev?.rank ?? null,
+      basisScore: basis?.score ?? null,
+      basisRank: basis?.rank ?? null,
+    };
+  };
+  res.json({
+    round: { id: round.id, name: round.name, order: round.order, status: round.status, kind: round.kind, advanceCount: round.advanceCount },
+    editable: round.status !== 'CLOSED',
+    previous: previous
+      ? { id: previous.id, name: previous.name, closed: previous.status === 'CLOSED', basisNames: prevTab?.basis?.names ?? null }
+      : null,
+    entries: round.entries
+      .slice()
+      .sort((a, b) => a.candidate.number - b.candidate.number)
+      .map((e) => ({ ...dto(e.candidate), ...context(e.candidateId), score: e.score === null ? null : Number(e.score), rank: e.rank, advanced: e.advanced })),
+    pool: all.filter((c) => !inRound.has(c.id)).map((c) => ({ ...dto(c), ...context(c.id) })),
+  });
+});
+
+/** The round before says who went on: keep its "went on" flags in step with this round's field. */
+async function syncPreviousFlags(round: { id: number; eventId: number; order: number }) {
+  const previous = await prisma.round.findFirst({ where: { eventId: round.eventId, order: { lt: round.order } }, orderBy: { order: 'desc' } });
+  if (!previous || previous.status !== 'CLOSED') return;
+  const nextIds = new Set((await prisma.roundEntry.findMany({ where: { roundId: round.id }, select: { candidateId: true } })).map((e) => e.candidateId));
+  const prevEntries = await prisma.roundEntry.findMany({ where: { roundId: previous.id }, select: { candidateId: true, advanced: true } });
+  await prisma.$transaction(
+    prevEntries
+      .filter((e) => e.advanced !== nextIds.has(e.candidateId))
+      .map((e) =>
+        prisma.roundEntry.update({
+          where: { roundId_candidateId: { roundId: previous.id, candidateId: e.candidateId } },
+          data: { advanced: nextIds.has(e.candidateId) },
+        }),
+      ),
+  );
+}
+
+roundsRouter.post('/rounds/:id/entries', admin, async (req, res) => {
+  const roundId = id.parse(req.params.id);
+  const { candidateIds } = z.object({ candidateIds: z.array(z.number().int().positive()).min(1).max(500) }).parse(req.body);
+  const round = await prisma.round.findUniqueOrThrow({ where: { id: roundId }, select: { id: true, eventId: true, name: true, status: true, order: true } });
+  if (round.status === 'CLOSED') return res.status(409).json({ error: `Reopen ${round.name} before changing who competes in it` });
+  const unique = [...new Set(candidateIds)];
+  const found = await prisma.candidate.findMany({ where: { id: { in: unique }, eventId: round.eventId }, select: { id: true } });
+  if (found.length !== unique.length) return res.status(400).json({ error: 'A candidate is not part of this event' });
+  await prisma.roundEntry.createMany({ data: unique.map((candidateId) => ({ roundId, candidateId })), skipDuplicates: true });
+  await syncPreviousFlags(round);
+  await audit(round.eventId, req.user!.name, 'field.add', { roundId, name: round.name, count: unique.length });
+  publish(round.eventId, { type: 'round', roundId });
+  res.json({ added: unique.length });
+});
+
+roundsRouter.delete('/rounds/:id/entries/:candidateId', admin, async (req, res) => {
+  const roundId = id.parse(req.params.id);
+  const candidateId = id.parse(req.params.candidateId);
+  const round = await prisma.round.findUniqueOrThrow({
+    where: { id: roundId },
+    include: { categories: { include: { criteria: { select: { id: true } } } } },
+  });
+  if (round.status === 'CLOSED') return res.status(409).json({ error: `Reopen ${round.name} before changing who competes in it` });
+  const candidate = await prisma.candidate.findUnique({ where: { id: candidateId }, select: { number: true, name: true } });
+  if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
+  const who = `No. ${candidate.number} ${candidate.name}`;
+  const criterionIds = round.categories.flatMap((c) => c.criteria.map((cr) => cr.id));
+  const [scores, votes] = await Promise.all([
+    prisma.score.count({ where: { candidateId, criterionId: { in: criterionIds } } }),
+    prisma.pairVote.count({ where: { pair: { roundId, OR: [{ candidateAId: candidateId }, { candidateBId: candidateId }] } } }),
+  ]);
+  if (scores > 0) return res.status(409).json({ error: `${who} already has scores in ${round.name}. Reset the scores first.` });
+  if (votes > 0) return res.status(409).json({ error: `${who} already has votes in ${round.name}. Reset the scores first.` });
+  // Dropping an entry drops its pairs too (with no votes on them, as checked above), so the round is
+  // left needing its pairs drawn again - exactly what a changed field needs.
+  await prisma.$transaction([
+    prisma.roundEntry.deleteMany({ where: { roundId, candidateId } }),
+    prisma.pair.deleteMany({ where: { roundId, OR: [{ candidateAId: candidateId }, { candidateBId: candidateId }] } }),
+  ]);
+  await syncPreviousFlags(round);
+  await audit(round.eventId, req.user!.name, 'field.remove', { roundId, name: round.name, candidateId });
+  publish(round.eventId, { type: 'round', roundId });
+  res.json({ removed: true });
+});
+
+// Points added to or taken off a candidate's score after tabulation: guideline penalties (an automatic
+// 5-point deduction and the like) and last-minute fixes. Counted at full value in the round's score,
+// so with its weight in any cut the round is part of.
+roundsRouter.get('/rounds/:id/adjustments', admin, async (req, res) => {
+  const rows = await prisma.adjustment.findMany({
+    where: { roundId: id.parse(req.params.id) },
+    orderBy: { id: 'asc' },
+    include: { candidate: { select: { id: true, number: true, name: true } } },
+  });
+  res.json(rows.map((a) => ({ id: a.id, points: Number(a.points), reason: a.reason, actor: a.actor, candidate: a.candidate })));
+});
+
+roundsRouter.post('/rounds/:id/adjustments', admin, async (req, res) => {
+  const roundId = id.parse(req.params.id);
+  const body = z
+    .object({
+      candidateId: z.number().int().positive(),
+      points: z.number().refine((n) => n !== 0, 'Give points to add or take off'),
+      reason: z.string().trim().max(200).optional(),
+    })
+    .parse(req.body);
+  const round = await prisma.round.findUniqueOrThrow({ where: { id: roundId }, select: { eventId: true, name: true, status: true } });
+  if (round.status === 'CLOSED') return res.status(409).json({ error: `${round.name} is closed; reopen it before adjusting scores` });
+  const entry = await prisma.roundEntry.findUnique({
+    where: { roundId_candidateId: { roundId, candidateId: body.candidateId } },
+    select: { candidateId: true },
+  });
+  if (!entry) return res.status(400).json({ error: 'That candidate does not compete in this round' });
+  const created = await prisma.adjustment.create({
+    data: { roundId, candidateId: body.candidateId, points: body.points, reason: body.reason || null, actor: req.user!.name },
+  });
+  await audit(round.eventId, req.user!.name, 'adjustment.add', { roundId, candidateId: body.candidateId, points: body.points, reason: body.reason ?? null });
+  publish(round.eventId, { type: 'round', roundId });
+  res.status(201).json({ id: created.id, points: Number(created.points), reason: created.reason });
+});
+
+roundsRouter.delete('/adjustments/:id', admin, async (req, res) => {
+  const adjustmentId = id.parse(req.params.id);
+  const existing = await prisma.adjustment.findUnique({
+    where: { id: adjustmentId },
+    include: { round: { select: { eventId: true, name: true, status: true } } },
+  });
+  if (!existing) return res.status(404).json({ error: 'Adjustment not found' });
+  if (existing.round.status === 'CLOSED') return res.status(409).json({ error: `${existing.round.name} is closed; reopen it before changing adjustments` });
+  await prisma.adjustment.delete({ where: { id: adjustmentId } });
+  await audit(existing.round.eventId, req.user!.name, 'adjustment.remove', { roundId: existing.roundId, adjustmentId });
+  publish(existing.round.eventId, { type: 'round', roundId: existing.roundId });
+  res.status(204).end();
+});
+

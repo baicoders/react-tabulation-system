@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  applyAdjustments,
   applyCarryOver,
   assignRanks,
   averageScores,
+  combineBasis,
   rankSum,
   rankTitle,
   topN,
@@ -82,6 +84,50 @@ test('topN flags a tie at the cut line', () => {
   const { advancing, tieAtCutLine } = topN(ranked, 2);
   assert.equal(advancing.length, 3);
   assert.deepEqual(tieAtCutLine.map((r) => r.candidateId), [2, 3]);
+});
+
+test('adjustments add and deduct at full value, ignoring candidates without a score', () => {
+  const adjusted = applyAdjustments(
+    [
+      { candidateId: 1, score: 90 },
+      { candidateId: 2, score: 85 },
+    ],
+    [
+      { candidateId: 1, points: -5 },
+      { candidateId: 1, points: -5 },
+      { candidateId: 3, points: 10 },
+    ],
+  );
+  assert.deepEqual(adjusted, [
+    { candidateId: 1, score: 80 },
+    { candidateId: 2, score: 85 },
+  ]);
+});
+
+test('combineBasis adds each round score times its weight', () => {
+  // Gown and Deba Teh at 5:1 is the 2026 rule's raw-sum ratio (maxima 150 and 30) on 0-100 scores.
+  const combined = combineBasis([
+    { weight: 5, scores: [{ candidateId: 1, score: 80 }, { candidateId: 2, score: 85 }] },
+    { weight: 1, scores: [{ candidateId: 1, score: 90 }, { candidateId: 2, score: 60 }] },
+  ]);
+  assert.deepEqual(new Map(combined.map((c) => [c.candidateId, c.score])), new Map([[1, 490], [2, 485]]));
+});
+
+test('combineBasis: a missed round contributes nothing and the rest still count', () => {
+  const combined = combineBasis([
+    { weight: 1, scores: [{ candidateId: 1, score: 70 }] },
+    { weight: 1, scores: [{ candidateId: 1, score: 70 }, { candidateId: 2, score: 95 }] },
+  ]);
+  assert.deepEqual(new Map(combined.map((c) => [c.candidateId, c.score])), new Map([[1, 140], [2, 95]]));
+});
+
+test('combineBasis keeps ties tied so the cut line sees them', () => {
+  const combined = combineBasis([
+    { weight: 2, scores: [{ candidateId: 1, score: 80 }, { candidateId: 2, score: 80 }] },
+    { weight: 1, scores: [{ candidateId: 1, score: 60 }, { candidateId: 2, score: 60 }] },
+  ]);
+  const ranked = assignRanks(combined, 'desc');
+  assert.deepEqual(ranked.map((r) => r.rank), [1, 1]);
 });
 
 test('rankTitle names the top four', () => {
