@@ -83,7 +83,7 @@ List response:
 | POST | `/groups/:id/values` | `{ name }` |
 | DELETE | `/group-values/:id` | |
 | GET | `/events/:eventId/rounds` | Rounds in order, with categories and criteria |
-| POST | `/events/:eventId/rounds` | `{ name, kind?, scoreMethod?, advanceCount?, carryOverWeight?, dropExtremes?, tieBreak? }`; order is set to the end |
+| POST | `/events/:eventId/rounds` | `{ name, kind?, advanceCount?, carryOverWeight?, dropExtremes?, tieBreak? }`; order is set to the end |
 | PATCH | `/rounds/:id` | Any field from POST |
 | DELETE | `/rounds/:id` | |
 | POST | `/rounds/:id/categories` | `{ name, weight? }` |
