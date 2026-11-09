@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { categoryResults, categoryWeightError, combineCategoryAverages, type CategoryScore } from './category';
+import { IncompatibleMeasurementsError, SCORED_POINTS, type Measurement } from './measurement';
 
 test('category results use assigned complete submissions and keep full precision', () => {
   const scores: CategoryScore[] = [
@@ -40,13 +41,27 @@ test('no judges or no criteria cannot constitute a completed category', () => {
 test('cut combines category averages with equal or configured weights and no missing-category totals', () => {
   const production = [{ candidateId: 1, score: 90 }, { candidateId: 2, score: 80 }];
   const costume = [{ candidateId: 1, score: 70 }, { candidateId: 2, score: 90 }];
-  assert.deepEqual(combineCategoryAverages([1, 2], [{ weight: 1, scores: production }, { weight: 1, scores: costume }]), [
+  assert.deepEqual(combineCategoryAverages([1, 2], [{ measurement: SCORED_POINTS, weight: 1, scores: production }, { measurement: SCORED_POINTS, weight: 1, scores: costume }]), [
     { candidateId: 1, score: 80 }, { candidateId: 2, score: 85 },
   ]);
-  assert.deepEqual(combineCategoryAverages([1, 2], [{ weight: 3, scores: production }, { weight: 1, scores: costume }]), [
+  assert.deepEqual(combineCategoryAverages([1, 2], [{ measurement: SCORED_POINTS, weight: 3, scores: production }, { measurement: SCORED_POINTS, weight: 1, scores: costume }]), [
     { candidateId: 1, score: 85 }, { candidateId: 2, score: 82.5 },
   ]);
-  assert.deepEqual(combineCategoryAverages([1, 2], [{ weight: 1, scores: production }, { weight: 1, scores: [] }]), []);
+  assert.deepEqual(combineCategoryAverages([1, 2], [{ measurement: SCORED_POINTS, weight: 1, scores: production }, { measurement: SCORED_POINTS, weight: 1, scores: [] }]), []);
+});
+
+test('shared combination rejects different units or directions without converting', () => {
+  const incompatible: Measurement[] = [
+    { unit: 'PAIR_VOTE_OUTCOMES', direction: 'desc' },
+    { unit: 'RANK_POINTS', direction: 'asc' },
+    { unit: 'SCORED_POINTS', direction: 'asc' },
+  ];
+  for (const measurement of incompatible) {
+    assert.throws(() => combineCategoryAverages([1], [
+      { measurement: SCORED_POINTS, weight: 1, scores: [{ candidateId: 1, score: 90 }] },
+      { measurement, weight: 1, scores: [] },
+    ]), IncompatibleMeasurementsError);
+  }
 });
 
 test('category cut weights are either all equal or complete percentages', () => {
