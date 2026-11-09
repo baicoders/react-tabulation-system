@@ -12,6 +12,10 @@ exist; the reconciliation is not complete. PR #2's round-based basis is not part
 The HARA-specific seed script exists on the rehearsal branch; reconcile it when bringing the
 rehearsal kit into the epic.
 
+The shared scored-cut calculation now checks result units and ranking direction before combining.
+Category-level pair voting and any future basis-writing or combined-report routes must apply the
+same check before accepting or reporting a combination; those routes do not yet exist here.
+
 PRs [#2](https://github.com/baicoders/react-tabulation-system/pull/2) (flexible cuts) and
 [#3](https://github.com/baicoders/react-tabulation-system/pull/3) (HARA rehearsal kit) are
 **reference material, not required designs or merge dependencies**. Reconcile their useful event

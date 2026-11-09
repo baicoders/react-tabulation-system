@@ -2,6 +2,7 @@ import { prisma } from './prisma';
 import { pictureUrls } from './images';
 import { tabulatePairRound, type PairTally } from './tabulate-pairs';
 import { categoryResults, categoryWeightError, combineCategoryAverages } from '../scoring/category';
+import { SCORED_POINTS } from '../scoring/measurement';
 import {
   applyCarryOver,
   assignRanks,
@@ -141,7 +142,7 @@ async function tabulateScoredRound(roundId: number) {
     scores: scores.map((score) => ({ ...score, points: Number(score.points) })),
     dropExtremes: round.dropExtremes,
   }));
-  const categoryCombined = weightError ? [] : combineCategoryAverages(entryIds, categoryAverages.map((category, index) => ({ weight: catShares[index], scores: category.scores })));
+  const categoryCombined = weightError ? [] : combineCategoryAverages(entryIds, categoryAverages.map((category, index) => ({ measurement: SCORED_POINTS, weight: catShares[index], scores: category.scores })));
   let results: CandidateScore[] = round.scoreMethod === 'RANK_SUM' ? rankSum(totals) : categoryCombined;
 
   if (round.scoreMethod === 'AVERAGE') {
