@@ -5,8 +5,9 @@
 Where the two differ, neither should be mistaken for the other.
 
 **Foundation in progress:** scored categories have independent average rankings, and scored round
-cuts combine those category averages with equal or explicit weights. Pair voting is still owned by
-rounds rather than categories and still needs the pair-outcome changes below. Rank-sum settings still
+cuts combine those category averages with equal or explicit weights. Pair-vote rounds show outcomes
+without ranking across pairs, and matching cuts advance pair winners; manual field selection handles
+other cuts. Pair voting is still owned by rounds rather than categories. Rank-sum settings still
 exist; the reconciliation is not complete. PR #2's round-based basis is not part of this branch.
 The HARA-specific seed script exists on the rehearsal branch; reconcile it when bringing the
 rehearsal kit into the epic.
