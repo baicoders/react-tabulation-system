@@ -238,6 +238,11 @@ select.input { border-color: var(--field); }
 
 /* ---------- photos and people ---------- */
 .photo { display: inline-grid; place-items: center; flex: none; border-radius: 50%; object-fit: cover; background: var(--raised); font-size: var(--fs-small); font-weight: 600; color: var(--muted); }
+.photo-button { border: 0; padding: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+.photo-button:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.candidate-photo-dialog { width: min(90vw, 560px); max-height: 90vh; border: 0; border-radius: 12px; padding: 20px; }
+.candidate-photo-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+.candidate-photo-dialog img { display: block; max-width: 100%; max-height: 70vh; margin: auto; object-fit: contain; }
 .initial { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 50%; font-size: var(--fs-small); font-weight: 600; color: var(--text); }
 
 .pagination { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
