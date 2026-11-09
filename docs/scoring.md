@@ -1,6 +1,6 @@
 # Scoring methods
 
-There is no official tabulation standard, so each round picks its rules from the common options below. The code is in [`apps/api/src/scoring/index.ts`](../apps/api/src/scoring/index.ts) and every rule has a unit test.
+There is no official tabulation standard, so each round currently picks its rules from the common options below. The category-first reconciliation is in progress; see [tabulation-reconciliation.md](tabulation-reconciliation.md) for the target model.
 
 ## Settings per round
 
@@ -21,16 +21,17 @@ Every judge total is out of 100, so rounds with different point ranges compare f
 ```text
 criterion part = points / max points * criterion share
 category score = sum of its criterion parts            (out of 100)
-judge total    = sum of category score * category share, over the categories the judge scored
+category average = average of complete submitted judge totals for that category
+round score      = weighted average of category averages
 ```
 
-A share is the weight in percent, or an equal split when no weights are set. With Poise 40%, Delivery 30% and Confidence 30% on a 1 to 10 scale, scores of 2, 9 and 7 give 8 + 27 + 21 = 56. Only submitted scores count. Test scores count only while testing mode is on.
+A share is the weight in percent, or an equal split when no weights are set. With Poise 40%, Delivery 30% and Confidence 30% on a 1 to 10 scale, scores of 2, 9 and 7 give 8 + 27 + 21 = 56. A category includes only fully submitted score sheets from assigned judges. The round combines category averages rather than judge totals, so different numbers of judges do not change a category's share. Test scores count only while testing mode is on. The legacy rank-sum method still uses round-level judge totals and will be removed during reconciliation.
 
 The code is `apps/api/src/lib/tabulate.ts`; the judge screen shows the same total per row.
 
 ## Average of raw scores
 
-The candidate's score is the average of the judge totals. Higher wins.
+The candidate's category score is the average of the assigned judges' category totals. Category averages are weighted to find the round's cut score. Higher wins.
 
 ## Rank-sum
 

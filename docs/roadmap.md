@@ -1,5 +1,9 @@
 # Roadmap
 
+> The category-first tabulation reconciliation is planned in
+> [tabulation-reconciliation.md](tabulation-reconciliation.md). Completed items below describe
+> the current implementation, not the target behavior of that series.
+
 ## Done (scaffold)
 
 - [x] Monorepo with React + Vite web app and Express + Prisma API

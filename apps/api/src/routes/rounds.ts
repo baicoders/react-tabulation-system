@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { publish } from '../lib/live';
 import { tabulateRound } from '../lib/tabulate';
 import { requireRole } from '../middleware/auth';
+import { categoryWeightError } from '../scoring/category';
 
 // Running a round on the night: open it, watch the tabulation, close it and send the Top N on.
 export const roundsRouter = Router();
@@ -21,6 +22,11 @@ roundsRouter.get('/rounds/:id/tabulation', admin, async (req, res) => {
 
 roundsRouter.post('/rounds/:id/open', admin, async (req, res) => {
   const round = await prisma.round.findUniqueOrThrow({ where: { id: id.parse(req.params.id) }, include: { _count: { select: { entries: true } } } });
+  if (round.kind === 'SCORED') {
+    const categories = await prisma.category.findMany({ where: { roundId: round.id }, select: { weight: true } });
+    const error = categoryWeightError(categories.map((c) => c.weight === null ? null : Number(c.weight)));
+    if (error) return res.status(409).json({ error });
+  }
   const otherOpen = await prisma.round.findFirst({ where: { eventId: round.eventId, status: 'OPEN', id: { not: round.id } } });
   if (otherOpen) return res.status(409).json({ error: `Close ${otherOpen.name} before opening ${round.name}` });
 
@@ -43,12 +49,18 @@ roundsRouter.post('/rounds/:id/open', admin, async (req, res) => {
 roundsRouter.post('/rounds/:id/close', admin, async (req, res) => {
   const { includeTies } = z.object({ includeTies: z.boolean().default(false) }).parse(req.body ?? {});
   const roundId = id.parse(req.params.id);
+  const categories = await prisma.category.findMany({ where: { roundId }, select: { weight: true } });
+  const weightError = categoryWeightError(categories.map((c) => c.weight === null ? null : Number(c.weight)));
+  if (weightError) return res.status(409).json({ error: weightError });
   const tab = await tabulateRound(roundId);
   if (tab.round.status !== 'OPEN') return res.status(409).json({ error: `${tab.round.name} is not open` });
   if (tab.round.kind === 'PAIR_VOTE' && tab.pairs.length === 0) return res.status(409).json({ error: 'Set the pairs first' });
   if (!tab.complete && tab.pairTies.length === 0) {
     const waiting = tab.judges.filter((j) => j.required > 0 && !j.done).map((j) => j.name);
-    return res.status(409).json({ error: `Waiting on ${waiting.join(', ')}` });
+    if (waiting.length) return res.status(409).json({ error: `Waiting on ${waiting.join(', ')}` });
+    const unready = await prisma.category.findMany({ where: { roundId }, include: { _count: { select: { criteria: true, judges: true } } } });
+    const names = unready.filter((c) => c._count.criteria === 0 || c._count.judges === 0).map((c) => c.name);
+    return res.status(409).json({ error: names.length ? `Add criteria and assign judges for ${names.join(', ')} before closing` : 'This round is not ready to close' });
   }
   if (tab.unpaired > 0) return res.status(409).json({ error: `${tab.unpaired} candidates have no pair yet` });
   if (tab.pairTies.length > 0) {

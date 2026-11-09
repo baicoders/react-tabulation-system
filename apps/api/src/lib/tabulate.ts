@@ -1,10 +1,10 @@
 import { prisma } from './prisma';
 import { pictureUrls } from './images';
 import { tabulatePairRound, type PairTally } from './tabulate-pairs';
+import { categoryResults, categoryWeightError, combineCategoryAverages } from '../scoring/category';
 import {
   applyCarryOver,
   assignRanks,
-  averageScores,
   rankSum,
   topN,
   type CandidateScore,
@@ -98,7 +98,16 @@ async function tabulateScoredRound(roundId: number) {
     };
   });
   const scoring = progress.filter((p) => p.required > 0);
-  const complete = round.kind === 'SCORED' && scoring.length > 0 && scoring.every((p) => p.done);
+  const configurationErrors: string[] = [];
+  const weightError = categoryWeightError(round.categories.map((category) => category.weight === null ? null : Number(category.weight)));
+  if (weightError) configurationErrors.push(weightError);
+  if (round.categories.length === 0) configurationErrors.push('Add at least one category.');
+  for (const category of round.categories) {
+    if (category.criteria.length === 0) configurationErrors.push(`Add criteria for ${category.name}.`);
+    if (category.judges.length === 0) configurationErrors.push(`Assign at least one judge to ${category.name}.`);
+  }
+  const complete = round.kind === 'SCORED' && scoring.length > 0 && scoring.every((p) => p.done) &&
+    configurationErrors.length === 0;
 
   // Judge totals from submitted scores only.
   const submitted = scores.filter((s) => s.status === 'SUBMITTED');
@@ -124,7 +133,16 @@ async function tabulateScoredRound(roundId: number) {
   }
 
   const direction = round.scoreMethod === 'RANK_SUM' ? 'asc' : 'desc';
-  let results: CandidateScore[] = round.scoreMethod === 'RANK_SUM' ? rankSum(totals) : averageScores(totals, { dropExtremes: round.dropExtremes });
+  const categoryAverages = round.categories.map((category) => categoryResults({
+    candidateIds: entryIds,
+    activeCandidateIds: entryIds,
+    judgeIds: category.judges.map((judge) => judge.judgeId),
+    criteria: category.criteria.map((criterion) => ({ id: criterion.id, maxPoints: Number(criterion.maxPoints), weight: criterion.weight === null ? null : Number(criterion.weight) })),
+    scores: scores.map((score) => ({ ...score, points: Number(score.points) })),
+    dropExtremes: round.dropExtremes,
+  }));
+  const categoryCombined = weightError ? [] : combineCategoryAverages(entryIds, categoryAverages.map((category, index) => ({ weight: catShares[index], scores: category.scores })));
+  let results: CandidateScore[] = round.scoreMethod === 'RANK_SUM' ? rankSum(totals) : categoryCombined;
 
   if (round.scoreMethod === 'AVERAGE') {
     if (round.carryOverWeight !== null) {
@@ -149,7 +167,7 @@ async function tabulateScoredRound(roundId: number) {
       number: c.number,
       name: c.name,
       thumbUrl: pictureUrls(c.picturePath).thumbUrl,
-      score: Math.round(r.score * 100) / 100,
+      score: r.score,
       rank: r.rank,
     };
   });
@@ -160,6 +178,7 @@ async function tabulateScoredRound(roundId: number) {
     entries: entryIds.length,
     judges: progress,
     complete,
+    configurationErrors,
     standings,
     direction,
     advancingIds: cut.advancing.map((r) => r.candidateId),
