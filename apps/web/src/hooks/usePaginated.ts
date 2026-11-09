@@ -14,6 +14,7 @@ export interface Page<T> {
  */
 export function usePaginated<T>(path: string | null, params: Record<string, string | number | undefined>) {
   const [data, setData] = useState<Page<T> | null>(null);
+  const [loadedPath, setLoadedPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -28,6 +29,7 @@ export function usePaginated<T>(path: string | null, params: Record<string, stri
     api<Page<T>>(`${path}?${query}`, { signal: controller.signal })
       .then((res) => {
         setData(res);
+        setLoadedPath(path);
         setError(null);
       })
       .catch((err) => {
@@ -40,5 +42,6 @@ export function usePaginated<T>(path: string | null, params: Record<string, stri
   }, [path, query, reloadKey]);
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
-  return { data, loading, error, reload };
+  // Keep results while filtering the same resource, but never show one category's rows under another.
+  return { data: loadedPath === path ? data : null, loading, error, reload };
 }
