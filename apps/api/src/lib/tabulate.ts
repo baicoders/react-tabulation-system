@@ -5,10 +5,8 @@ import { categoryResults, categoryWeightError, combineCategoryAverages } from '.
 import {
   applyCarryOver,
   assignRanks,
-  rankSum,
   topN,
   type CandidateScore,
-  type JudgeTotal,
 } from '../scoring';
 
 export interface JudgeProgress {
@@ -109,30 +107,8 @@ async function tabulateScoredRound(roundId: number) {
   const complete = round.kind === 'SCORED' && scoring.length > 0 && scoring.every((p) => p.done) &&
     configurationErrors.length === 0;
 
-  // Judge totals from submitted scores only.
-  const submitted = scores.filter((s) => s.status === 'SUBMITTED');
-  const totals: JudgeTotal[] = [];
   const catShares = shares(round.categories);
-  for (const judge of scoring) {
-    for (const candidateId of entryIds) {
-      let total = 0;
-      let weightUsed = 0;
-      round.categories.forEach((cat, ci) => {
-        if (!judge.submittedCategoryIds.includes(cat.id)) return;
-        const crShares = shares(cat.criteria);
-        let catScore = 0;
-        cat.criteria.forEach((cr, i) => {
-          const s = submitted.find((x) => x.judgeId === judge.id && x.candidateId === candidateId && x.criterionId === cr.id);
-          if (s) catScore += (Number(s.points) / Number(cr.maxPoints)) * crShares[i];
-        });
-        total += catScore * catShares[ci];
-        weightUsed += catShares[ci];
-      });
-      if (weightUsed > 0) totals.push({ judgeId: judge.id, candidateId, total: total / weightUsed });
-    }
-  }
-
-  const direction = round.scoreMethod === 'RANK_SUM' ? 'asc' : 'desc';
+  const direction = 'desc' as const;
   const categoryAverages = round.categories.map((category) => categoryResults({
     candidateIds: entryIds,
     activeCandidateIds: entryIds,
@@ -142,19 +118,17 @@ async function tabulateScoredRound(roundId: number) {
     dropExtremes: round.dropExtremes,
   }));
   const categoryCombined = weightError ? [] : combineCategoryAverages(entryIds, categoryAverages.map((category, index) => ({ weight: catShares[index], scores: category.scores })));
-  let results: CandidateScore[] = round.scoreMethod === 'RANK_SUM' ? rankSum(totals) : categoryCombined;
+  let results: CandidateScore[] = categoryCombined;
 
-  if (round.scoreMethod === 'AVERAGE') {
-    if (round.carryOverWeight !== null) {
-      const previous = await prisma.round.findFirst({
-        where: { eventId: round.eventId, order: { lt: round.order }, status: 'CLOSED', kind: 'SCORED' },
-        orderBy: { order: 'desc' },
-        include: { entries: { where: { candidateId: { in: entryIds } }, select: { candidateId: true, score: true } } },
-      });
-      if (previous) {
-        const earlier = previous.entries.filter((e) => e.score !== null).map((e) => ({ candidateId: e.candidateId, score: Number(e.score) }));
-        results = applyCarryOver(results, earlier, Number(round.carryOverWeight));
-      }
+  if (round.carryOverWeight !== null) {
+    const previous = await prisma.round.findFirst({
+      where: { eventId: round.eventId, order: { lt: round.order }, status: 'CLOSED', kind: 'SCORED' },
+      orderBy: { order: 'desc' },
+      include: { entries: { where: { candidateId: { in: entryIds } }, select: { candidateId: true, score: true } } },
+    });
+    if (previous) {
+      const earlier = previous.entries.filter((e) => e.score !== null).map((e) => ({ candidateId: e.candidateId, score: Number(e.score) }));
+      results = applyCarryOver(results, earlier, Number(round.carryOverWeight));
     }
   }
 
@@ -174,7 +148,7 @@ async function tabulateScoredRound(roundId: number) {
   const cut = round.advanceCount ? topN(ranked, round.advanceCount) : { advancing: ranked, tieAtCutLine: [] };
 
   return {
-    round: { id: round.id, name: round.name, order: round.order, status: round.status, kind: round.kind, scoreMethod: round.scoreMethod, advanceCount: round.advanceCount },
+    round: { id: round.id, name: round.name, order: round.order, status: round.status, kind: round.kind, advanceCount: round.advanceCount },
     entries: entryIds.length,
     judges: progress,
     complete,

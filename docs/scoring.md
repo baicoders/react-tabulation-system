@@ -6,7 +6,7 @@ There is no official tabulation standard, so each round currently picks its rule
 
 | Setting | Options | Default |
 | --- | --- | --- |
-| Score method | Average of raw scores, Rank-sum, Pair vote | Average |
+| Judging type | Scored criteria, Pair vote | Scored criteria |
 | Criterion weights | Percent of its category, must total 100 | Equal |
 | Category weights | Percent of the round, must total 100 | Equal |
 | Carry-over | Start fresh, or carry a share of earlier rounds | Start fresh |
@@ -25,24 +25,13 @@ category average = average of complete submitted judge totals for that category
 round score      = weighted average of category averages
 ```
 
-A share is the weight in percent, or an equal split when no weights are set. With Poise 40%, Delivery 30% and Confidence 30% on a 1 to 10 scale, scores of 2, 9 and 7 give 8 + 27 + 21 = 56. A category includes only fully submitted score sheets from assigned judges. The round combines category averages rather than judge totals, so different numbers of judges do not change a category's share. Test scores count only while testing mode is on. The legacy rank-sum method still uses round-level judge totals and will be removed during reconciliation.
+A share is the weight in percent, or an equal split when no weights are set. With Poise 40%, Delivery 30% and Confidence 30% on a 1 to 10 scale, scores of 2, 9 and 7 give 8 + 27 + 21 = 56. A category includes only fully submitted score sheets from assigned judges. The round combines category averages rather than judge totals, so different numbers of judges do not change a category's share. Test scores count only while testing mode is on.
 
 The code is `apps/api/src/lib/tabulate.ts`; the judge screen shows the same total per row.
 
 ## Average of raw scores
 
 The candidate's category score is the average of the assigned judges' category totals. Category averages are weighted to find the round's cut score. Higher wins.
-
-## Rank-sum
-
-Each judge's totals are turned into ranks (1 = best). Tied totals share the average rank, so two candidates tied for first both get 1.5. Ranks are summed per candidate and the lowest sum wins. One very generous or very harsh judge cannot swing the result.
-
-| Candidate | Judge 1 | Judge 2 | Judge 3 | Average | Rank-sum |
-| --- | --- | --- | --- | --- | --- |
-| A | 95 (rank 1) | 80 (rank 2) | 82 (rank 2) | 85.7, wins | 5 |
-| B | 85 (rank 2) | 86 (rank 1) | 85 (rank 1) | 85.3 | 4, wins |
-
-This exact example is a unit test, so the engine is checked against it on every run.
 
 ## Pair vote
 

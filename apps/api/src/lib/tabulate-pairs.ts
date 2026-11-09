@@ -124,7 +124,7 @@ export async function tabulatePairRound(roundId: number) {
   const cut = round.advanceCount ? topN(ranked, round.advanceCount) : { advancing: ranked, tieAtCutLine: [] };
 
   return {
-    round: { id: round.id, name: round.name, order: round.order, status: round.status, kind: round.kind, scoreMethod: round.scoreMethod, advanceCount: round.advanceCount },
+    round: { id: round.id, name: round.name, order: round.order, status: round.status, kind: round.kind, advanceCount: round.advanceCount },
     entries: round.entries.length,
     judges: progress,
     complete: complete && pairs.every((p) => !p.tied),

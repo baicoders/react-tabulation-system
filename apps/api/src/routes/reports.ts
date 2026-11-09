@@ -188,7 +188,7 @@ reportsRouter.get('/rounds/:id/report', admin, async (req, res) => {
   const groupPos = positions(rows, (a, b) => a.rank !== null && a.rank === b.rank);
   res.json({
     event: round.event,
-    round: { id: round.id, name: round.name, kind: round.kind, status: round.status, scoreMethod: round.scoreMethod, advanceCount: round.advanceCount },
+    round: { id: round.id, name: round.name, kind: round.kind, status: round.status, advanceCount: round.advanceCount },
     categories: round.categories.map((c) => ({ id: c.id, name: c.name, weight: c.weight === null ? null : Number(c.weight) })),
     judgesSubmitted: tab.judges.filter((j) => j.done).length,
     judges: tab.judges.filter((j) => j.required > 0 || round.kind === 'PAIR_VOTE').length,
