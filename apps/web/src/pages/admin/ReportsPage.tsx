@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useDebouncedCallback, useLiveUpdates } from '../../hooks/useLiveUpdates';
 import { useAdmin } from './AdminLayout';
-import { CandidateReport, CombinedReport, JudgeReport, OverallReport, RoundReport } from './reportViews';
+import { CandidateReport, CategoryReport, CombinedReport, JudgeReport, OverallReport, RoundReport } from './reportViews';
 
 const VIEWS = [
   { key: 'overall', label: 'Overall ranking' },
   { key: 'round', label: 'By round' },
+  { key: 'category', label: 'By category' },
   { key: 'combined', label: 'Combined score' },
   { key: 'candidate', label: 'By candidate' },
   { key: 'judge', label: 'By judge' },
@@ -58,6 +59,7 @@ export function ReportsPage() {
 
       {view === 'overall' && <OverallReport event={event} params={params} set={set} version={version} />}
       {view === 'round' && <RoundReport event={event} params={params} set={set} version={version} />}
+      {view === 'category' && <CategoryReport event={event} params={params} set={set} version={version} />}
       {view === 'combined' && <CombinedReport event={event} params={params} set={set} version={version} />}
       {view === 'candidate' && <CandidateReport event={event} params={params} set={set} version={version} />}
       {view === 'judge' && <JudgeReport event={event} params={params} set={set} version={version} />}

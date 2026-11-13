@@ -74,7 +74,7 @@ export function JudgesPage() {
         <div>
           <h1>Judges</h1>
           <p className="sub">
-            {event.status === 'ACTIVE' ? 'Judges log in with their name and the password you set here.' : 'Judges can log in once this event is live.'} Tick the rounds each one
+            {event.status === 'ACTIVE' ? 'Judges log in with their name and the password you set here.' : 'Judges can log in once this event is live.'} Tick the categories each one
             scores.
           </p>
         </div>

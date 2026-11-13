@@ -15,6 +15,7 @@ import { reportsRouter } from './routes/reports';
 import { roundsRouter } from './routes/rounds';
 import { settingsRouter } from './routes/settings';
 import { setupRouter } from './routes/setup';
+import { IncompatibleMeasurementsError, PairVoteRankingError } from './scoring';
 
 export function createApp() {
   const app = express();
@@ -48,6 +49,8 @@ export function createApp() {
 
   // express-async-errors forwards rejected promises from async handlers to here.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    if (err instanceof IncompatibleMeasurementsError) return res.status(400).json({ error: err.message });
+    if (err instanceof PairVoteRankingError) return res.status(400).json({ error: err.message });
     // Upload problems (a photo over the size limit) are the user's to fix, so they get a plain message, not a 500.
     if (err instanceof multer.MulterError) {
       const message = err.code === 'LIMIT_FILE_SIZE' ? `That photo is over ${MAX_PHOTO_MB} MB. Use a smaller copy.` : `Upload failed: ${err.message}`;

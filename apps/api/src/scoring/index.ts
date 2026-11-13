@@ -19,6 +19,35 @@ export interface RankedCandidate extends CandidateScore {
 /** "desc" when a higher score is better (averages), "asc" when lower is better (rank-sum). */
 export type Direction = 'desc' | 'asc';
 
+/** A measurement identifies both the unit and which direction is better. */
+export type Measurement = 'SCORED_POINTS' | 'RANK_POINTS' | 'PAIR_VOTES';
+
+export function roundMeasurement(round: { kind: 'SCORED' | 'PAIR_VOTE'; scoreMethod: 'AVERAGE' | 'RANK_SUM' }): Measurement {
+  return round.kind === 'PAIR_VOTE' ? 'PAIR_VOTES' : round.scoreMethod === 'RANK_SUM' ? 'RANK_POINTS' : 'SCORED_POINTS';
+}
+
+export function measurementDirection(measurement: Measurement): Direction {
+  return measurement === 'RANK_POINTS' ? 'asc' : 'desc';
+}
+
+export class IncompatibleMeasurementsError extends Error {
+  constructor() {
+    super('These results use different units or ranking directions — no conversion rule exists. Votes, scores, and rank points cannot be combined.');
+    this.name = 'IncompatibleMeasurementsError';
+  }
+}
+
+export class PairVoteRankingError extends Error {
+  constructor() {
+    super('Pair-vote outcomes cannot be ranked across pairs; choose advancing candidates manually.');
+    this.name = 'PairVoteRankingError';
+  }
+}
+
+export function assertCompatibleMeasurements(measurements: Measurement[]): void {
+  if (new Set(measurements).size > 1) throw new IncompatibleMeasurementsError();
+}
+
 function groupBy<T>(items: T[], key: (item: T) => number): Map<number, T[]> {
   const map = new Map<number, T[]>();
   for (const item of items) {
@@ -94,7 +123,8 @@ export function applyAdjustments(results: CandidateScore[], adjustments: { candi
  * Scores run out of 100, so equal weights mean equal shares; a round the candidate missed contributes
  * nothing. Adjustments are already inside each round's score.
  */
-export function combineBasis(sources: { weight: number; scores: CandidateScore[] }[]): CandidateScore[] {
+export function combineBasis(sources: { measurement: Measurement; weight: number; scores: CandidateScore[] }[]): CandidateScore[] {
+  assertCompatibleMeasurements(sources.map((s) => s.measurement));
   if (sources.some((s) => s.weight <= 0)) throw new RangeError('basis weights must be above 0');
   const totals = new Map<number, number>();
   for (const { weight, scores } of sources) {

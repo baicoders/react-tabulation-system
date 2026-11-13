@@ -33,7 +33,7 @@ interface Tabulation {
   round: { id: number; name: string; status: string; kind: string; advanceCount: number | null };
   entries: number;
   complete: boolean;
-  judges: { id: number; name: string; required: number; scored: number; done: boolean }[];
+  judges: { id: number; name: string; required: number; scored: number; done: boolean; categories?: { id: number; name: string; required: number; scored: number; submitted: boolean }[] }[];
   standings: Standing[];
   direction: 'asc' | 'desc';
   advancingIds: number[];
@@ -521,12 +521,12 @@ export function EventOverviewPage() {
   const closeRound = (includeTies: boolean) =>
     open &&
     run(async () => {
-      const res = await api<{ advanced: number; nextRound: { name: string } | null }>(`/rounds/${open.round.id}/close`, {
+      const res = await api<{ advanced: number; manualAdvancement: boolean; nextRound: { name: string } | null }>(`/rounds/${open.round.id}/close`, {
         method: 'POST',
         body: JSON.stringify({ includeTies }),
       });
       setMessage(
-        res.nextRound && open.round.advanceCount
+        res.nextRound && !res.manualAdvancement
           ? `${open.round.name} is closed. ${res.advanced} candidates go on to ${res.nextRound.name}.`
           : res.nextRound
             ? `${open.round.name} is closed. Choose who goes on to ${res.nextRound.name} by hand, in Who competes below.`
@@ -540,6 +540,10 @@ export function EventOverviewPage() {
   const allowChanges = (judge: { id: number; name: string }) => {
     if (!open || !confirm(`Let ${judge.name} change their scores in ${open.round.name}? They must submit again afterwards.`)) return;
     void run(() => api(`/rounds/${open.round.id}/judges/${judge.id}/unlock`, { method: 'POST' }), `${judge.name} can change their scores again.`); // taste-skill-ignore: API path, not copy
+  };
+  const allowCategoryChanges = (judge: { id: number; name: string }, category: { id: number; name: string }) => {
+    if (!confirm(`Let ${judge.name} change their scores in ${category.name}? They must submit that category again; other categories stay submitted.`)) return;
+    void run(() => api(`/categories/${category.id}/judges/${judge.id}/unlock`, { method: 'POST' }), `${judge.name} can change ${category.name} again.`);
   };
   // Rehearsal clean-up: every score, vote, pair and round result goes; candidates, rounds and judges stay.
   const startOver = () => {
@@ -898,11 +902,17 @@ export function EventOverviewPage() {
                     <Initial name={j.name} index={i} />
                     <span className="grow">
                       {j.name}
-                      {j.done && (
+                      {j.done && (j.categories?.length ?? 0) <= 1 && (
                         <button className="link-btn quiet" style={{ display: 'block', fontSize: 12 }} onClick={() => allowChanges(j)}>
                           Allow changes
                         </button>
                       )}
+                      {(j.categories?.length ?? 0) > 1 && j.categories?.map((c) => (
+                        <span key={c.id} className="meta" style={{ display: 'block' }}>
+                          {c.name}: {c.submitted ? 'Submitted' : `${c.scored}/${c.required}`}
+                          {c.submitted && <> · <button className="link-btn quiet" onClick={() => allowCategoryChanges(j, c)}>Allow changes</button></>}
+                        </span>
+                      ))}
                     </span>
                     {j.done ? <span className="pill pos">Submitted</span> : <span className="end muted num">{j.scored}/{j.required}</span>}
                   </div>

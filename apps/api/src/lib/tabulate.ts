@@ -2,11 +2,12 @@ import { prisma } from './prisma';
 import { pictureUrls } from './images';
 import { tabulatePairRound, type PairTally } from './tabulate-pairs';
 import { combineCutBasis, loadAdjustments, loadBasis, type AdjustmentRow, type BasisSource } from './cut';
+import { categoryResults, combineCategoryAverages } from '../scoring/category';
 import {
   applyAdjustments,
   applyCarryOver,
   assignRanks,
-  averageScores,
+  measurementDirection,
   rankSum,
   topN,
   type CandidateScore,
@@ -24,6 +25,7 @@ export interface JudgeProgress {
   scored: number;
   /** Categories this judge has submitted (every score in them locked). */
   submittedCategoryIds: number[];
+  categories?: { id: number; name: string; required: number; scored: number; submitted: boolean }[];
   done: boolean;
 }
 
@@ -100,6 +102,11 @@ async function tabulateScoredRound(roundId: number) {
       return need > 0 && done >= need;
     });
     const required = myCriteria.length * entryIds.length;
+    const categories = round.categories.filter((c) => categoryIds.includes(c.id)).map((cat) => {
+      const ids = new Set(cat.criteria.map((c) => c.id));
+      return { id: cat.id, name: cat.name, required: cat.criteria.length * entryIds.length,
+        scored: mine.filter((s) => ids.has(s.criterionId)).length, submitted: submittedCategoryIds.includes(cat.id) };
+    });
     return {
       id: j.id,
       name: j.name,
@@ -107,11 +114,13 @@ async function tabulateScoredRound(roundId: number) {
       required,
       scored: mine.length,
       submittedCategoryIds,
+      categories,
       done: required > 0 && submittedCategoryIds.length === categoryIds.length,
     };
   });
   const scoring = progress.filter((p) => p.required > 0);
-  const complete = round.kind === 'SCORED' && scoring.length > 0 && scoring.every((p) => p.done);
+  const complete = round.kind === 'SCORED' && scoring.length > 0 && scoring.every((p) => p.done) &&
+    round.categories.length > 0 && round.categories.every((cat) => cat.criteria.length > 0 && cat.judges.length > 0);
 
   // Judge totals from submitted scores only.
   const submitted = scores.filter((s) => s.status === 'SUBMITTED');
@@ -137,7 +146,18 @@ async function tabulateScoredRound(roundId: number) {
   }
 
   const direction = round.scoreMethod === 'RANK_SUM' ? 'asc' : 'desc';
-  let results: CandidateScore[] = round.scoreMethod === 'RANK_SUM' ? rankSum(totals) : averageScores(totals, { dropExtremes: round.dropExtremes });
+  // Average each category independently before combining it for the cut. Combining per-judge
+  // totals first would give categories with more assigned judges an unintended larger share.
+  const categoryAverages = round.categories.map((cat) => categoryResults({
+    candidateIds: entryIds,
+    activeCandidateIds: [...activeIds],
+    judgeIds: cat.judges.map((j) => j.judgeId),
+    criteria: cat.criteria.map((cr) => ({ id: cr.id, maxPoints: Number(cr.maxPoints), weight: cr.weight === null ? null : Number(cr.weight) })),
+    scores: scores.map((s) => ({ ...s, points: Number(s.points) })),
+    dropExtremes: round.dropExtremes,
+  }));
+  const categoryCombined = combineCategoryAverages(entryIds, categoryAverages.map((c, i) => ({ weight: catShares[i], scores: c.scores })));
+  let results: CandidateScore[] = round.scoreMethod === 'RANK_SUM' ? rankSum(totals) : categoryCombined;
 
   if (round.scoreMethod === 'AVERAGE') {
     if (round.carryOverWeight !== null) {
@@ -169,7 +189,8 @@ async function tabulateScoredRound(roundId: number) {
       number: c.number,
       name: c.name,
       thumbUrl: pictureUrls(c.picturePath).thumbUrl,
-      score: score === null ? null : Math.round(score * 100) / 100,
+      // Keep the calculated value for persistence and later calculations; clients format for display.
+      score,
       rank,
       ...(withdrawn ? { withdrawn: true } : {}),
     };
@@ -185,7 +206,7 @@ async function tabulateScoredRound(roundId: number) {
   let cutRanked: RankedCandidate[] = ranked;
   let cutStandings: StandingRow[] | null = null;
   if (basis) {
-    cutRanked = assignRanks(basis.combined.filter((r) => activeIds.has(r.candidateId)), direction);
+    cutRanked = assignRanks(basis.combined.filter((r) => activeIds.has(r.candidateId)), measurementDirection(basis.sources[0].measurement));
     cutStandings = cutRanked.map((r) => toRow(r.candidateId, r.score, r.rank));
   }
   const cut = round.advanceCount ? topN(cutRanked, round.advanceCount) : { advancing: cutRanked, tieAtCutLine: [] };

@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma';
 import { publish } from '../lib/live';
 import { tabulateRound } from '../lib/tabulate';
 import { requireRole } from '../middleware/auth';
+import { categoryWeightError } from '../scoring/category';
 
 // Running a round on the night: open it, watch the tabulation, close it and send the Top N on.
 export const roundsRouter = Router();
@@ -23,6 +24,11 @@ roundsRouter.get('/rounds/:id/tabulation', admin, async (req, res) => {
 
 roundsRouter.post('/rounds/:id/open', admin, async (req, res) => {
   const round = await prisma.round.findUniqueOrThrow({ where: { id: id.parse(req.params.id) }, include: { _count: { select: { entries: true } } } });
+  if (round.kind === 'SCORED') {
+    const categories = await prisma.category.findMany({ where: { roundId: round.id }, select: { weight: true } });
+    const error = categoryWeightError(categories.map((c) => c.weight === null ? null : Number(c.weight)));
+    if (error) return res.status(409).json({ error });
+  }
   const otherOpen = await prisma.round.findFirst({ where: { eventId: round.eventId, status: 'OPEN', id: { not: round.id } } });
   if (otherOpen) return res.status(409).json({ error: `Close ${otherOpen.name} before opening ${round.name}` });
 
@@ -45,12 +51,21 @@ roundsRouter.post('/rounds/:id/open', admin, async (req, res) => {
 roundsRouter.post('/rounds/:id/close', admin, async (req, res) => {
   const { includeTies } = z.object({ includeTies: z.boolean().default(false) }).parse(req.body ?? {});
   const roundId = id.parse(req.params.id);
+  const categories = await prisma.category.findMany({ where: { roundId }, select: { weight: true } });
+  const weightError = categoryWeightError(categories.map((c) => c.weight === null ? null : Number(c.weight)));
+  if (weightError) return res.status(409).json({ error: weightError });
   const tab = await tabulateRound(roundId);
   if (tab.round.status !== 'OPEN') return res.status(409).json({ error: `${tab.round.name} is not open` });
   if (tab.round.kind === 'PAIR_VOTE' && tab.pairs.length === 0) return res.status(409).json({ error: 'Set the pairs first' });
   if (!tab.complete && tab.pairTies.length === 0) {
     const waiting = tab.judges.filter((j) => j.required > 0 && !j.done).map((j) => j.name);
-    return res.status(409).json({ error: `Waiting on ${waiting.join(', ')}` });
+    if (waiting.length) return res.status(409).json({ error: `Waiting on ${waiting.join(', ')}` });
+    const categories = await prisma.category.findMany({
+      where: { roundId },
+      include: { _count: { select: { criteria: true, judges: true } } },
+    });
+    const notReady = categories.filter((c) => c._count.criteria === 0 || c._count.judges === 0).map((c) => c.name);
+    return res.status(409).json({ error: notReady.length ? `Add criteria and assign judges for ${notReady.join(', ')} before closing` : 'This round is not ready to close' });
   }
   if (tab.unpaired > 0) return res.status(409).json({ error: `${tab.unpaired} candidates have no pair yet` });
   if (tab.pairTies.length > 0) {
@@ -68,24 +83,25 @@ roundsRouter.post('/rounds/:id/close', admin, async (req, res) => {
 
   const round = await prisma.round.findUniqueOrThrow({ where: { id: roundId } });
   const advancing = new Set(tab.advancingIds);
+  const manualAdvancement = round.advanceCount === null || ('manualAdvancement' in tab && tab.manualAdvancement);
   const next = await prisma.round.findFirst({ where: { eventId: round.eventId, order: { gt: round.order } }, orderBy: { order: 'asc' } });
 
   await prisma.$transaction([
     ...tab.standings.map((s) =>
       prisma.roundEntry.update({
         where: { roundId_candidateId: { roundId, candidateId: s.candidateId } },
-        data: { score: s.score, rank: s.rank, advanced: round.advanceCount ? advancing.has(s.candidateId) : null },
+        data: { score: s.score, rank: s.rank, advanced: manualAdvancement ? null : advancing.has(s.candidateId) },
       }),
     ),
     prisma.round.update({ where: { id: roundId }, data: { status: 'CLOSED' } }),
-    ...(next && round.advanceCount
+    ...(next && !manualAdvancement
       ? [prisma.roundEntry.createMany({ data: tab.advancingIds.map((candidateId) => ({ roundId: next.id, candidateId })), skipDuplicates: true })]
       : []),
   ]);
   await audit(round.eventId, req.user!.name, 'round.close', { roundId, name: round.name, advanced: round.advanceCount ? tab.advancingIds.length : 0, includeTies });
   publish(round.eventId, { type: 'round', roundId: round.id });
   // A hand-decided cut sends nobody on automatically; the admin fills the next round's field.
-  res.json({ closed: true, advanced: round.advanceCount ? tab.advancingIds.length : 0, nextRound: next ? { id: next.id, name: next.name } : null });
+  res.json({ closed: true, advanced: manualAdvancement ? 0 : tab.advancingIds.length, manualAdvancement, nextRound: next ? { id: next.id, name: next.name } : null });
 });
 
 // Undo a close: the round opens again, its results are cleared and the next round empties if it has not started.
@@ -114,6 +130,22 @@ roundsRouter.post('/rounds/:id/judges/:judgeId/unlock', admin, async (req, res) 
   await audit(round.eventId, req.user!.name, 'scores.unlock', { roundId: round.id, judgeId, count });
   publish(round.eventId, { type: 'round', roundId: round.id });
   res.json({ unlocked: count });
+});
+
+// Unlock just one submitted category; other categories remain submitted.
+roundsRouter.post('/categories/:id/judges/:judgeId/unlock', admin, async (req, res) => {
+  const category = await prisma.category.findUniqueOrThrow({
+    where: { id: id.parse(req.params.id) },
+    include: { round: true, criteria: { select: { id: true } } },
+  });
+  const judgeId = id.parse(req.params.judgeId);
+  if (category.round.status !== 'OPEN') return res.status(409).json({ error: `${category.round.name} is not open` });
+  const assignment = await prisma.judgeCategory.findUnique({ where: { judgeId_categoryId: { judgeId, categoryId: category.id } } });
+  if (!assignment) return res.status(404).json({ error: 'This judge is not assigned to the category' });
+  const scores = await prisma.score.updateMany({ where: { judgeId, criterionId: { in: category.criteria.map((c) => c.id) }, status: 'SUBMITTED' }, data: { status: 'DRAFT' } });
+  await audit(category.round.eventId, req.user!.name, 'scores.unlock-category', { roundId: category.roundId, categoryId: category.id, judgeId, count: scores.count });
+  publish(category.round.eventId, { type: 'round', roundId: category.roundId });
+  res.json({ unlocked: scores.count });
 });
 
 // Testing mode clean-up: delete the test scores (or every score) in a round that is not closed.
@@ -365,4 +397,3 @@ roundsRouter.delete('/adjustments/:id', admin, async (req, res) => {
   publish(existing.round.eventId, { type: 'round', roundId: existing.roundId });
   res.status(204).end();
 });
-

@@ -106,7 +106,7 @@ All scoped to the judge's own event and to categories assigned to them, in round
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/judge/sheet` | `{ event, judge, rounds: [{ id, name, entries, categories: [{ id, name, criteria, scored, required, submitted }] }] }` |
-| GET | `/judge/categories/:categoryId/candidates` | Candidates in the round, paginated (`page`, `pageSize` up to 100, `q`), each with this judge's `scores` by criterion id, plus `locked` |
+| GET | `/judge/categories/:categoryId/candidates` | Candidates in the round, paginated (`page`, `pageSize` up to 100, `q`), each with `thumbUrl`, larger `photoUrl`, and this judge's `scores` by criterion id, plus `locked` |
 | PUT | `/judge/scores` | `{ categoryId, scores: [{ candidateId, criterionId, points }] }` saves drafts; `points: null` clears one. Values outside a criterion's range are refused. `409` after the category is submitted |
 | POST | `/judge/categories/:categoryId/submit` | Locks the category; `409` with the number still missing if any score is empty |
 
@@ -129,6 +129,7 @@ Pair-vote rounds come back in `/judge/sheet` as `pairRounds: [{ id, name, pairs:
 | POST | `/rounds/:id/reopen` | Clears the results and empties the next round, if it has not started |
 | POST | `/rounds/:id/pairs` | Pair-vote rounds: `{ method: "RANKED" \| "RANDOM" }`. Ranked pairs 1st with last of the round before (1 v 10, 2 v 9); random is a draw. Needs an even field; can be redone until the first vote |
 | POST | `/rounds/:id/judges/:judgeId/unlock` | Lets one judge change their submitted scores or votes in the round |
+| POST | `/categories/:id/judges/:judgeId/unlock` | Unlocks one assigned judge's scores in one category of an open round; other categories remain submitted |
 | POST | `/rounds/:id/reset-scores` | `{ testOnly? }` (default true). Not allowed on a closed round |
 | POST | `/events/:eventId/start-over` | Rehearsals only (testing mode on): deletes every score, vote, pair and round result, and every round goes back to not started. Candidates, rounds and judges stay |
 
@@ -154,6 +155,7 @@ Read only. Built from submitted scores and from the results saved when rounds cl
 | --- | --- | --- |
 | GET | `/events/:eventId/reports/overall` | `?groupValueId`. Each candidate's place: furthest round reached, then rank there (while that round is open, rank in the last closed round). `title` (Champion, 1st to 3rd Runner-up) once the final round is closed |
 | GET | `/rounds/:id/report` | `?groupValueId`. Per candidate: category scores (judges' average, out of 100), score, rank, whether they went on; for pair rounds the opponent and votes |
+| GET | `/categories/:id/report` | `?groupValueId`. Independent category averages and ranks, computed from complete submissions by assigned judges, plus submitted/assigned judge counts and completion state. Ranks use unrounded values. |
 | GET | `/candidates/:id/report` | Every round the candidate entered, with each judge's points per criterion, or their vote in a pair round |
 | GET | `/rounds/:id/judges/:judgeId/report` | Every score one judge gave in a round, with their total out of 100 and when it was saved |
 

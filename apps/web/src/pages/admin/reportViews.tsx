@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import type { EventDetail, Group } from '../../api/types';
+import type { EventDetail, Group, Round } from '../../api/types';
 import { CandidatePhoto } from '../../components/CandidatePhoto';
 import { useBranding } from '../../branding/BrandingContext';
 import { BrandLogo } from '../../components/BrandLogo';
@@ -210,6 +210,65 @@ export function OverallReport({ event, params, set, version }: ViewProps) {
 }
 
 /* ------------------------------------------------------------------ by round */
+
+interface CategoryData {
+  category: { id: number; name: string };
+  round: { id: number; name: string; status: string };
+  groupValueId: number | null;
+  judges: number;
+  judgesSubmitted: number;
+  complete: boolean;
+  rows: { candidate: ReportCandidate; score: number | null; rank: number | null }[];
+}
+
+export function CategoryReport({ event, params, set, version }: ViewProps) {
+  const meta = useSheetMeta(event);
+  const rounds = useResource<Round[]>(live(`/events/${event.id}/rounds`, version));
+  const categories = (rounds.data ?? []).filter((r) => r.kind === 'SCORED' && r._count.entries > 0)
+    .flatMap((r) => r.categories.map((c) => ({ ...c, roundName: r.name })));
+  const selected = categories.find((c) => String(c.id) === params.get('category')) ?? categories[0] ?? null;
+  const group = params.get('group');
+  const data = useResource<CategoryData>(selected ? live(`/categories/${selected.id}/report${group ? `?groupValueId=${group}` : ''}`, version) : null);
+  const d = data.data?.category.id === selected?.id && String(data.data.groupValueId ?? '') === (group ?? '') ? data.data : null;
+  const scope = groupLabel(event.groups, group);
+  const title = `${selected?.name ?? 'Category'} ranking${scope ? `, ${scope}` : ''}`;
+
+  if (!rounds.data) return <Loading error={rounds.error} retry={rounds.reload} />;
+  if (!selected) return <div className="empty">No scored category has started yet, so there is nothing to report.</div>;
+
+  function excel() {
+    if (!d) return;
+    downloadExcel(`${event.name} ${title}`, 'Category', [
+      ['Rank', 'No.', 'Candidate', 'Groups', 'Average score'],
+      ...d.rows.map((r): Cell[] => [r.rank, r.candidate.number, r.candidate.name, groupNames(r.candidate), r.score]),
+    ], meta(title, `${d.judgesSubmitted} of ${d.judges} judges submitted`, d.complete && d.round.status === 'CLOSED' ? 'Final' : 'Provisional'));
+  }
+
+  return (
+    <>
+      <ReportHead event={event} title={title}
+        sub={d && `${d.complete && d.round.status === 'CLOSED' ? 'Final' : 'Provisional: results can change'}. ${d.judgesSubmitted} of ${d.judges} assigned judges submitted. Ranks use full calculated values; displayed scores are rounded.`}
+        controls={<>
+          <select className="input" value={selected.id} onChange={(e) => set({ category: e.target.value })} aria-label="Category">
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.roundName}: {c.name}</option>)}
+          </select>
+          <GroupSelect groups={event.groups} value={group} onChange={(v) => set({ group: v })} />
+        </>}
+        onExcel={excel} disabled={!d} />
+      {!d ? <Loading error={data.error} retry={data.reload} /> : <div className="table-wrap">
+        <table className="report-table">
+          <thead><tr><th className="n">Rank</th><th className="n">No.</th><th>Candidate</th><th className="n">Average score</th></tr></thead>
+          <tbody>{d.rows.map((r) => <tr key={r.candidate.id} className={r.candidate.status === 'WITHDRAWN' ? 'muted' : undefined}>
+            <td className="n">{r.rank ?? '-'}</td><td className="n">{r.candidate.number}</td>
+            <td>{r.candidate.name}{r.candidate.status === 'WITHDRAWN' && ' (withdrew)'}<span className="sub">{groupNames(r.candidate)}</span></td>
+            <td className="n">{fmt(r.score)}</td>
+          </tr>)}</tbody>
+        </table>
+        {d.rows.length === 0 && <div className="empty">No candidates in this group.</div>}
+      </div>}
+    </>
+  );
+}
 
 interface RoundData {
   round: { id: number; name: string; kind: 'SCORED' | 'PAIR_VOTE'; status: string; advanceCount: number | null };

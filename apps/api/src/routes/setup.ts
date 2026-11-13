@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { publish } from '../lib/live';
 import { prisma } from '../lib/prisma';
 import { requireRole } from '../middleware/auth';
+import { assertCompatibleMeasurements, PairVoteRankingError, roundMeasurement } from '../scoring';
 
 // Event setup: groups, rounds, categories, criteria and judges. All admin only.
 export const setupRouter = Router();
@@ -74,7 +75,7 @@ const roundBody = z.object({
 type BasisItem = { sourceRoundId: number | null; weight: number };
 
 /** Saves a round's cut basis. Returns an error message when a source round does not fit. */
-async function replaceBasis(round: { id: number; eventId: number; order: number }, basis: BasisItem[]): Promise<string | null> {
+async function replaceBasis(round: { id: number; eventId: number; order: number; kind: 'SCORED' | 'PAIR_VOTE'; scoreMethod: 'AVERAGE' | 'RANK_SUM' }, basis: BasisItem[]): Promise<string | null> {
   const items = basis.map((b) => ({ sourceRoundId: b.sourceRoundId ?? round.id, weight: b.weight }));
   const sourceIds = items.map((b) => b.sourceRoundId);
   if (new Set(sourceIds).size !== sourceIds.length) return 'A round is listed twice in the cut basis';
@@ -82,6 +83,8 @@ async function replaceBasis(round: { id: number; eventId: number; order: number 
   if (sources.length !== sourceIds.length || sources.some((s) => s.eventId !== round.eventId)) return 'A round in the cut basis is not part of this event';
   const later = sources.find((s) => s.order > round.order);
   if (later) return `The cut cannot be based on ${later.name}; it comes after this round`;
+  assertCompatibleMeasurements(sources.map((s) => roundMeasurement(s.id === round.id ? round : s)));
+  if (round.kind === 'PAIR_VOTE' && sourceIds.some((sourceId) => sourceId !== round.id)) throw new PairVoteRankingError();
   await prisma.$transaction([
     prisma.roundBasis.deleteMany({ where: { roundId: round.id } }),
     ...(items.length > 0 ? [prisma.roundBasis.createMany({ data: items.map((b) => ({ ...b, roundId: round.id })) })] : []),
@@ -107,7 +110,13 @@ setupRouter.post('/events/:eventId/rounds', async (req, res) => {
   const { basis, ...data } = roundBody.parse(req.body);
   const last = await prisma.round.aggregate({ where: { eventId }, _max: { order: true } });
   const round = await prisma.round.create({ data: { ...data, eventId, order: (last._max.order ?? 0) + 1 } });
-  const error = await replaceBasis(round, basis ?? []);
+  let error: string | null;
+  try {
+    error = await replaceBasis(round, basis ?? []);
+  } catch (err) {
+    await prisma.round.delete({ where: { id: round.id } });
+    throw err;
+  }
   if (error) {
     await prisma.round.delete({ where: { id: round.id } });
     return res.status(400).json({ error });
@@ -116,13 +125,31 @@ setupRouter.post('/events/:eventId/rounds', async (req, res) => {
 });
 
 setupRouter.patch('/rounds/:id', async (req, res) => {
-  const { basis, ...data } = roundBody.partial().parse(req.body);
+  const { basis: parsedBasis, ...parsedData } = roundBody.partial().parse(req.body);
+  // Zod applies field defaults even under partial(); a PATCH must only update fields sent by the caller.
+  const data = Object.fromEntries(Object.entries(parsedData).filter(([key]) => Object.hasOwn(req.body, key))) as typeof parsedData;
+  const basis = Object.hasOwn(req.body, 'basis') ? parsedBasis : undefined;
   const round = await prisma.round.findUniqueOrThrow({
     where: { id: id.parse(req.params.id) },
-    select: { id: true, eventId: true, order: true },
+    select: { id: true, eventId: true, order: true, kind: true, scoreMethod: true },
   });
+  const updatedRound = { ...round, ...data };
+  if (data.kind !== undefined || data.scoreMethod !== undefined) {
+    // A changed source must not invalidate a different round's existing basis, or its own basis
+    // when the request is not replacing it. Check before writing either settings or basis.
+    const dependent = await prisma.roundBasis.findMany({ where: { sourceRoundId: round.id }, select: { roundId: true } });
+    const targetIds = [...new Set([
+      ...dependent.map((b) => b.roundId).filter((targetId) => targetId !== round.id || basis === undefined),
+      ...(basis === undefined ? [round.id] : []),
+    ])];
+    const related = await prisma.roundBasis.findMany({ where: { roundId: { in: targetIds } }, include: { sourceRound: true } });
+    for (const targetId of targetIds) {
+      assertCompatibleMeasurements(related.filter((b) => b.roundId === targetId).map((b) => roundMeasurement(b.sourceRoundId === round.id ? updatedRound : b.sourceRound)));
+      if (targetId === round.id && updatedRound.kind === 'PAIR_VOTE' && related.some((b) => b.roundId === round.id && b.sourceRoundId !== round.id)) throw new PairVoteRankingError();
+    }
+  }
   if (basis !== undefined) {
-    const error = await replaceBasis(round, basis ?? []);
+    const error = await replaceBasis(updatedRound, basis ?? []);
     if (error) return res.status(400).json({ error });
   }
   res.json(await prisma.round.update({ where: { id: round.id }, data }));

@@ -57,6 +57,22 @@ All tabulation math lives in `apps/api/src/scoring/index.ts` as pure functions. 
 npm test
 ```
 
+Database-backed API tests are opt-in and must use a dedicated disposable PostgreSQL database with
+the migrations already applied. They create and remove their own test event; never point them at a
+real event database:
+
+```bash
+TEST_DATABASE_URL='postgresql://user:password@localhost:5432/dedicated_test_db' npm test
+```
+
+The judge category-switching browser test uses mocked API responses and does not modify event data.
+Install the `e2e/` dependencies and run it against a running web app:
+
+```bash
+cd e2e
+BASE_URL=http://localhost:5173 npx playwright test tests/category-switch.spec.ts
+```
+
 ## Conventions
 
 - TypeScript strict mode in both apps.

@@ -1,5 +1,5 @@
 import { prisma } from './prisma';
-import { combineBasis, type CandidateScore } from '../scoring';
+import { combineBasis, roundMeasurement, type CandidateScore, type Measurement } from '../scoring';
 
 // What shapes a round's cut beyond the judges' scores: the adjustments against them, and the earlier
 // rounds a cut can be based on ("Basis of Top 5 = Gown and Deba Teh"). Shared by both tabulators.
@@ -22,6 +22,7 @@ export interface BasisSource {
   name: string;
   weight: number;
   closed: boolean;
+  measurement: Measurement;
 }
 
 /** What this round's cut is based on. Empty means the cut is this round alone. */
@@ -29,9 +30,9 @@ export async function loadBasis(roundId: number): Promise<BasisSource[]> {
   const rows = await prisma.roundBasis.findMany({
     where: { roundId },
     orderBy: { id: 'asc' },
-    include: { sourceRound: { select: { id: true, name: true, status: true } } },
+    include: { sourceRound: { select: { id: true, name: true, status: true, kind: true, scoreMethod: true } } },
   });
-  return rows.map((r) => ({ roundId: r.sourceRound.id, name: r.sourceRound.name, weight: Number(r.weight), closed: r.sourceRound.status === 'CLOSED' }));
+  return rows.map((r) => ({ roundId: r.sourceRound.id, name: r.sourceRound.name, weight: Number(r.weight), closed: r.sourceRound.status === 'CLOSED', measurement: roundMeasurement(r.sourceRound) }));
 }
 
 /** The scores a closed round saved (each already includes that round's own adjustments). */
@@ -53,6 +54,7 @@ export async function combineCutBasis(
   const parts = await Promise.all(
     sources.map(async (s) => ({
       weight: s.weight,
+      measurement: s.measurement,
       scores: s.roundId === ownRoundId ? ownScores : await loadStoredScores(s.roundId),
     })),
   );
