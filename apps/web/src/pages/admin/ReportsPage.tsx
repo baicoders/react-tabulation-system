@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useDebouncedCallback, useLiveUpdates } from '../../hooks/useLiveUpdates';
 import { useAdmin } from './AdminLayout';
-import { CandidateReport, CategoryReport, JudgeReport, OverallReport, RoundReport } from './reportViews';
+import { CandidateReport, CategoryReport, CombinedCategoriesReport, JudgeReport, OverallReport, RoundReport } from './reportViews';
 
 const VIEWS = [
+  { key: 'category', label: 'By category' },
+  { key: 'combined', label: 'Combined categories' },
   { key: 'overall', label: 'Overall ranking' },
   { key: 'round', label: 'By round' },
-  { key: 'category', label: 'By category' },
   { key: 'candidate', label: 'By candidate' },
   { key: 'judge', label: 'By judge' },
 ] as const;
@@ -21,7 +22,7 @@ export function ReportsPage() {
   const [version, setVersion] = useState(0);
   const bump = useDebouncedCallback(() => setVersion((v) => v + 1), 500);
   useLiveUpdates(event?.id, bump);
-  const view = (VIEWS.find((v) => v.key === params.get('view'))?.key ?? 'overall') as View;
+  const view = (VIEWS.find((v) => v.key === params.get('view'))?.key ?? 'category') as View;
 
   // Filters live in the URL, so a report can be reloaded or shared as it is.
   const set = (changes: Record<string, string | null>) =>
@@ -59,6 +60,7 @@ export function ReportsPage() {
       {view === 'overall' && <OverallReport event={event} params={params} set={set} version={version} />}
       {view === 'round' && <RoundReport event={event} params={params} set={set} version={version} />}
       {view === 'category' && <CategoryReport event={event} params={params} set={set} version={version} />}
+      {view === 'combined' && <CombinedCategoriesReport event={event} params={params} set={set} version={version} />}
       {view === 'candidate' && <CandidateReport event={event} params={params} set={set} version={version} />}
       {view === 'judge' && <JudgeReport event={event} params={params} set={set} version={version} />}
     </section>

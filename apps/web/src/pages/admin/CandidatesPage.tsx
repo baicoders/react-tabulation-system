@@ -147,7 +147,7 @@ export function CandidatesPage() {
                 <td className="n">{c.number}</td>
                 <td>
                   <div className="identity">
-                    <CandidatePhoto src={c.thumbUrl} name={c.name} size={40} />
+                    <CandidatePhoto src={c.thumbUrl} photoUrl={c.photoUrl} name={c.name} size={40} />
                     <span>
                       <span className="name">{c.name}</span>
                       {c.groups.length > 0 && <span className="sub phone-only">{c.groups.map((g) => g.name).join(' · ')}</span>}

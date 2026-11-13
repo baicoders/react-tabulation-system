@@ -351,6 +351,15 @@ th .sub { display: block; font-size: 11px; color: var(--faint); }
 .narrow-only, .report-table .narrow-only { display: none; }
 /* Grid items default to min-width: auto, which would let a wide score grid stretch the page. */
 .report-block { min-width: 0; }
+.category-ranking-table th:first-child, .category-ranking-table td:first-child,
+.category-ranking-table th:nth-child(2), .category-ranking-table td:nth-child(2) { width: 1%; white-space: nowrap; }
+.category-setup { margin: 20px 0; padding: 20px; border: 1px solid var(--border, #ddd); border-radius: 8px; }
+.category-setup > .section-title { margin: 0 0 16px; }
+.candidate-round-heading { margin: 0 0 8px; }
+.report-category-heading th { padding-top: 20px; font-size: 1.1em; font-weight: 700; }
+.signatures > .meta { text-align: center; }
+.pair-choice { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pair-choice .pick { flex: 1; min-width: 0; }
 @media screen and (max-width: 860px) {
   .report-table .wide-only { display: none; }
   .report-table .narrow-only { display: block; }
@@ -366,8 +375,8 @@ th .sub { display: block; font-size: 11px; color: var(--faint); }
 tr.titled td { background: var(--raised); }
 .print-only { display: none; }
 .signatures { margin-top: 48px; }
-.signature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px 32px; margin-top: 32px; }
-.signature { display: grid; gap: 8px; text-align: center; }
+.signature-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 40px 32px; margin-top: 32px; }
+.signature { display: grid; gap: 8px; text-align: center; flex: 0 1 220px; }
 .signature-line { border-bottom: 1px solid var(--text); height: 28px; }
 
 /* Paper: the frame, navigation and controls drop away; the report fills the page in black on white. */
@@ -395,6 +404,11 @@ tr.titled td { background: var(--raised); }
   .title-tag { color: var(--text); }
   .pill { background: none; padding: 0; }
   .report-block { break-inside: avoid-page; }
+  /* A candidate's stage can span pages: grid items and scroll containers otherwise move it wholesale. */
+  .candidate-report-sections { display: block; }
+  .candidate-report-sections .report-block { break-inside: auto; margin-bottom: 20px; }
+  .candidate-report-sections .table-wrap { overflow: visible; }
+  .candidate-report-sections .candidate-round-heading { break-after: avoid; }
   .signatures { break-inside: avoid; }
 }
 

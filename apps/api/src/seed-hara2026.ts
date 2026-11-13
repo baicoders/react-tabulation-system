@@ -523,7 +523,7 @@ async function seedReplay(zipPath: string, flagsDir: string | null) {
     const rosterNos = rosters.get(codes[0])!;
     for (const code of codes.slice(1)) {
       const other = rosters.get(code)!;
-      if (other.size !== rosterNos.size || [...other].some((no) => !rosters.get(code)!.has(no))) {
+      if (other.size !== rosterNos.size || [...other].some((no) => !rosterNos.has(no))) {
         throw new Error(`Categories ${codes.join(', ')} were expected to share one field but their old rosters differ`);
       }
     }
