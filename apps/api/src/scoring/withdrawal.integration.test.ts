@@ -1,0 +1,70 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { once } from 'node:events';
+
+test('withdrawal preserves closed stages and excludes the candidate from an open scored stage', { skip: !process.env.TEST_DATABASE_URL }, async () => {
+  process.env.DATABASE_URL = process.env.TEST_DATABASE_URL!;
+  process.env.JWT_SECRET = 'integration-test-secret-not-for-production';
+  const [{ createApp }, { prisma }, { signToken }] = await Promise.all([import('../app'), import('../lib/prisma'), import('../middleware/auth')]);
+  const server = createApp().listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Expected a TCP test server');
+  const token = signToken({ id: 1, role: 'admin', name: 'Test admin' });
+  const request = async (path: string, body?: object) => {
+    const response = await fetch(`http://127.0.0.1:${address.port}/api${path}`, { method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    return { status: response.status, data: await response.json() as any };
+  };
+  let eventId: number | undefined;
+  try {
+    const event = await prisma.event.create({ data: { name: 'Withdrawal test', status: 'ACTIVE' } });
+    eventId = event.id;
+    const [a, b] = await Promise.all([1, 2].map((n) => prisma.candidate.create({ data: { eventId: event.id, number: n, name: `Candidate ${n}` } })));
+    const prior = await prisma.round.create({ data: { eventId: event.id, name: 'Earlier', order: 1, status: 'CLOSED' } });
+    const current = await prisma.round.create({ data: { eventId: event.id, name: 'Current', order: 2, status: 'OPEN' } });
+    await prisma.roundEntry.createMany({ data: [a, b].flatMap((c) => [{ roundId: prior.id, candidateId: c.id, rank: c.number, score: 80 }, { roundId: current.id, candidateId: c.id }]) });
+    const category = await prisma.category.create({ data: { roundId: current.id, name: 'Scored' } });
+    const criterion = await prisma.criterion.create({ data: { categoryId: category.id, name: 'Criterion', minPoints: 0, maxPoints: 10 } });
+    const judge = await prisma.judge.create({ data: { eventId: event.id, name: 'Judge', passwordHash: 'unused' } });
+    await prisma.judgeCategory.create({ data: { judgeId: judge.id, categoryId: category.id } });
+    await prisma.score.createMany({ data: [a, b].map((c) => ({ candidateId: c.id, judgeId: judge.id, criterionId: criterion.id, points: c.number === 1 ? 9 : 8, status: 'SUBMITTED' as const })) });
+    assert.equal((await request(`/candidates/${a.id}/withdrawal`, { withdrawn: true })).status, 200);
+    const entries = await prisma.roundEntry.findMany({ where: { candidateId: a.id }, orderBy: { round: { order: 'asc' } } });
+    assert.equal(entries[0].withdrawn, false);
+    assert.equal(entries[0].rank, 1);
+    assert.equal(entries[1].withdrawn, true);
+    assert.equal(await prisma.score.count({ where: { candidateId: a.id } }), 1);
+    const judgeToken = signToken({ id: judge.id, role: 'judge', name: judge.name, eventId: event.id });
+    const judgeRows = await fetch(`http://127.0.0.1:${address.port}/api/judge/categories/${category.id}/candidates`, { headers: { Authorization: `Bearer ${judgeToken}` } });
+    const judgeData = await judgeRows.json() as any;
+    assert.equal(judgeRows.status, 200);
+    assert.equal(judgeData.items.find((row: any) => row.id === a.id).withdrawn, true);
+    assert.equal(judgeData.items.find((row: any) => row.id === b.id).withdrawn, false);
+    assert.equal(judgeData.total, 2);
+    const tab = await request(`/rounds/${current.id}/tabulation`);
+    assert.equal(tab.data.complete, true);
+    assert.deepEqual(tab.data.standings.map((r: any) => r.candidateId), [b.id]);
+    const report = await request(`/categories/${category.id}/report`);
+    assert.equal(report.data.rows.find((r: any) => r.candidate.id === a.id).withdrawn, true);
+    assert.equal(report.data.rows.find((r: any) => r.candidate.id === a.id).rank, null);
+    assert.equal((await request(`/candidates/${a.id}/withdrawal`, { withdrawn: false })).status, 409);
+    await prisma.round.update({ where: { id: current.id }, data: { status: 'CLOSED' } });
+    const c = await prisma.candidate.create({ data: { eventId: event.id, number: 3, name: 'Candidate 3' } });
+    const pairRound = await prisma.round.create({ data: { eventId: event.id, name: 'Pairs', order: 3, kind: 'PAIR_VOTE', status: 'OPEN', advanceCount: 1 } });
+    await prisma.roundEntry.createMany({ data: [b, c].map((candidate) => ({ roundId: pairRound.id, candidateId: candidate.id })) });
+    const pair = await prisma.pair.create({ data: { roundId: pairRound.id, candidateAId: b.id, candidateBId: c.id } });
+    await prisma.pairVote.create({ data: { pairId: pair.id, judgeId: judge.id, winnerId: b.id, status: 'SUBMITTED' } });
+    assert.equal((await request(`/candidates/${b.id}/withdrawal`, { withdrawn: true })).status, 200);
+    const pairTab = await request(`/rounds/${pairRound.id}/tabulation`);
+    assert.equal(pairTab.data.pairs[0].voided, true);
+    assert.equal(pairTab.data.pairs[0].winnerId, null);
+    assert.equal(pairTab.data.manualAdvancement, true);
+    assert.deepEqual(pairTab.data.advancingIds, []);
+    assert.equal(await prisma.pairVote.count({ where: { pairId: pair.id } }), 1);
+    assert.equal((await request(`/rounds/${pairRound.id}/close`, {})).status, 200);
+  } finally {
+    if (eventId) await prisma.event.delete({ where: { id: eventId } });
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await prisma.$disconnect();
+  }
+});

@@ -166,6 +166,7 @@ tbody.loading { opacity: 0.55; }
 .pill.pos { background: var(--pill-positive-bg); color: var(--pill-positive-ink); }
 .pill.neg { background: var(--pill-negative-bg); color: var(--pill-negative-ink); }
 .pill.warn { background: var(--pill-warning-bg); color: var(--pill-warning-ink); }
+.candidate-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
 /* ---------- controls ---------- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: var(--control-height); padding: 0 12px; border-radius: var(--radius-control); border: 1px solid var(--control); background: var(--surface); font-weight: 500; cursor: pointer; white-space: nowrap; transition: background-color var(--t-hover) ease, transform var(--t-press) var(--ease-out); }

@@ -91,6 +91,8 @@ model Candidate {
   number       Int
   name         String
   picturePath  String?
+  // An event withdrawal affects current and future fields, not past closed results.
+  withdrawn    Boolean               @default(false)
   event        Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
   groupValues  CandidateGroupValue[]
   roundEntries RoundEntry[]
@@ -137,6 +139,8 @@ model RoundEntry {
   roundId     Int
   candidateId Int
   advanced    Boolean?
+  // Snapshot for this stage, retained when the event-wide status later changes.
+  withdrawn   Boolean   @default(false)
   // Filled when the round closes: the final score (after any carry-over) and the rank.
   score       Decimal?  @db.Decimal(38, 20)
   rank        Int?
