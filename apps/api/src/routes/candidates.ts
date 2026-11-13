@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { deleteCandidatePicture, pictureUrls, saveCandidatePicture } from '../lib/images';
 import { MAX_PHOTO_MB, imageUpload as upload } from '../lib/upload';
 import { requireRole } from '../middleware/auth';
+import { publish } from '../lib/live';
 
 export const candidatesRouter = Router();
 
@@ -25,6 +26,7 @@ const candidateSelect = {
   number: true,
   name: true,
   picturePath: true,
+  withdrawn: true,
   groupValues: { select: { groupValue: { select: { id: true, name: true, groupId: true } } } },
 } satisfies Prisma.CandidateSelect;
 
@@ -88,6 +90,24 @@ candidatesRouter.patch('/candidates/:id', requireRole('admin'), async (req, res)
     },
     select: candidateSelect,
   });
+  res.json(toDto(updated));
+});
+
+// A stage keeps its withdrawal state once closed; this avoids rewriting official history.
+candidatesRouter.post('/candidates/:id/withdrawal', requireRole('admin'), async (req, res) => {
+  const candidateId = id.parse(req.params.id);
+  const { withdrawn } = z.object({ withdrawn: z.boolean() }).parse(req.body);
+  const candidate = await prisma.candidate.findUniqueOrThrow({ where: { id: candidateId }, include: { event: { select: { status: true } } } });
+  if (candidate.event.status === 'CLOSED') return res.status(409).json({ error: 'The event is closed. Reopen it before changing a withdrawal.' });
+  if (candidate.withdrawn === withdrawn) return res.json(toDto(await prisma.candidate.findUniqueOrThrow({ where: { id: candidateId }, select: candidateSelect })));
+  const openEntry = await prisma.roundEntry.findFirst({ where: { candidateId, round: { status: 'OPEN' } }, include: { round: true } });
+  if (!withdrawn && openEntry) return res.status(409).json({ error: 'This candidate has an open stage. Close it before reinstating them.' });
+  const [updated] = await prisma.$transaction([
+    prisma.candidate.update({ where: { id: candidateId }, data: { withdrawn }, select: candidateSelect }),
+    prisma.roundEntry.updateMany({ where: { candidateId, round: { status: { not: 'CLOSED' } } }, data: { withdrawn } }),
+    prisma.auditLog.create({ data: { eventId: candidate.eventId, actor: req.user!.name, action: withdrawn ? 'candidate.withdraw' : 'candidate.reinstate', details: { candidateId } } }),
+  ]);
+  publish(candidate.eventId, { type: 'round' });
   res.json(toDto(updated));
 });
 

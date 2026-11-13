@@ -14,6 +14,7 @@ interface Candidate {
   id: number;
   number: number;
   name: string;
+  withdrawn: boolean;
   thumbUrl: string | null;
   photoUrl: string | null;
   groups: { id: number; name: string; groupId: number }[];
@@ -52,6 +53,19 @@ export function CandidatesPage() {
       reload();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Upload failed');
+    }
+  }
+
+  async function setWithdrawal(c: Candidate) {
+    const action = c.withdrawn ? 'reinstate' : 'withdraw';
+    if (!confirm(`${c.withdrawn ? 'Reinstate' : 'Withdraw'} No. ${c.number} ${c.name}? Closed stage results remain unchanged.`)) return;
+    try {
+      await api(`/candidates/${c.id}/withdrawal`, { method: 'POST', body: JSON.stringify({ withdrawn: !c.withdrawn }) });
+      setMessage(null);
+      reload();
+      reloadEvent();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : `Could not ${action} candidate`);
     }
   }
 
@@ -139,6 +153,7 @@ export function CandidatesPage() {
                 </th>
               ))}
               <th className="n">Photo</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody className={loading ? 'loading' : undefined}>
@@ -165,6 +180,14 @@ export function CandidatesPage() {
                     <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => onUpload(c.id, e.target.files?.[0])} />
                   </label>
                 </td>
+                <td>
+                  <div className="candidate-status">
+                    <span className={c.withdrawn ? 'pill neg' : 'pill pos'}>{c.withdrawn ? 'Withdrawn' : 'Active'}</span>
+                    <button type="button" className="btn" onClick={() => setWithdrawal(c)} aria-label={`${c.withdrawn ? 'Reinstate' : 'Withdraw'} ${c.name}`}>
+                      {c.withdrawn ? 'Reinstate' : 'Withdraw'}
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {!data &&
@@ -176,6 +199,7 @@ export function CandidatesPage() {
                     <td key={g.id} className="hide-phone"><span className="skeleton" style={{ width: 80, height: 14 }} /></td>
                   ))}
                   <td className="n"><span className="skeleton" style={{ width: 48, height: 14 }} /></td>
+                  <td><span className="skeleton" style={{ width: 48, height: 14 }} /></td>
                 </tr>
               ))}
           </tbody>
