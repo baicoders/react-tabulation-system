@@ -16,7 +16,7 @@ export interface RankedCandidate extends CandidateScore {
   rank: number;
 }
 
-/** "desc" when a higher score is better (averages), "asc" when lower is better (rank-sum). */
+/** Direction for ordering calculated scores. */
 export type Direction = 'desc' | 'asc';
 
 function groupBy<T>(items: T[], key: (item: T) => number): Map<number, T[]> {
@@ -44,29 +44,6 @@ export function averageScores(totals: JudgeTotal[], options: { dropExtremes?: bo
     results.push({ candidateId, score: sum / values.length });
   }
   return results;
-}
-
-/**
- * Rank-sum: each judge's totals become ranks (1 = best, ties share the average rank),
- * then ranks are summed per candidate. Lower is better.
- */
-export function rankSum(totals: JudgeTotal[]): CandidateScore[] {
-  const sums = new Map<number, number>();
-  for (const rows of groupBy(totals, (t) => t.judgeId).values()) {
-    const sorted = [...rows].sort((a, b) => b.total - a.total);
-    let i = 0;
-    while (i < sorted.length) {
-      let j = i;
-      while (j + 1 < sorted.length && sorted[j + 1].total === sorted[i].total) j++;
-      const sharedRank = (i + 1 + (j + 1)) / 2;
-      for (let k = i; k <= j; k++) {
-        const id = sorted[k].candidateId;
-        sums.set(id, (sums.get(id) ?? 0) + sharedRank);
-      }
-      i = j + 1;
-    }
-  }
-  return [...sums].map(([candidateId, score]) => ({ candidateId, score }));
 }
 
 /** final = weight * earlier + (1 - weight) * current. Candidates missing an earlier score keep the current one. */

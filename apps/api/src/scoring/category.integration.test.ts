@@ -25,11 +25,16 @@ test('category scoring, pair outcomes, and manual advancement through the API', 
   try {
     const event = await prisma.event.create({ data: { name: 'Category reconciliation integration test' } });
     eventId = event.id;
+    const rejected = await request(`/events/${eventId}/rounds`, 'POST', { name: 'Unsupported', scoreMethod: 'RANK_SUM' });
+    assert.equal(rejected.status, 400);
     const [a, b] = await Promise.all([
       prisma.candidate.create({ data: { eventId, number: 1, name: 'Candidate A' } }),
       prisma.candidate.create({ data: { eventId, number: 2, name: 'Candidate B' } }),
     ]);
     const round = await prisma.round.create({ data: { eventId, order: 1, name: 'Opening stage', status: 'OPEN', advanceCount: 1 } });
+    const pair = await prisma.round.create({ data: { eventId, order: 2, name: 'Pair stage', kind: 'PAIR_VOTE' } });
+    assert.equal((await request(`/rounds/${pair.id}`, 'PATCH', { name: 'Renamed pair stage' })).status, 200);
+    assert.equal((await prisma.round.findUniqueOrThrow({ where: { id: pair.id } })).kind, 'PAIR_VOTE');
     await prisma.roundEntry.createMany({ data: [a, b].map((candidate) => ({ roundId: round.id, candidateId: candidate.id })) });
     const [production, costume] = await Promise.all([
       prisma.category.create({ data: { roundId: round.id, name: 'Production' } }),
