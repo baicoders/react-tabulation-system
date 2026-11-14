@@ -41,6 +41,7 @@ interface Row {
   number: number;
   name: string;
   thumbUrl: string | null;
+  photoUrl: string | null;
   scores: Record<number, number>;
 }
 
@@ -69,10 +70,11 @@ interface RowProps {
   edits: Record<number, Points> | undefined;
   locked: boolean;
   onChange: (candidateId: number, criterionId: number, value: Points) => void;
+  onPhoto: (row: Row) => void;
 }
 
 // Memoized: typing in one input re-renders that row only, not the whole sheet.
-const ScoreRow = memo(function ScoreRow({ row, criteria, edits, locked, onChange }: RowProps) {
+const ScoreRow = memo(function ScoreRow({ row, criteria, edits, locked, onChange, onPhoto }: RowProps) {
   const value = (cid: number): Points | undefined => (edits && cid in edits ? edits[cid] : row.scores[cid]);
   const total = categoryTotal(criteria, value);
   return (
@@ -80,7 +82,9 @@ const ScoreRow = memo(function ScoreRow({ row, criteria, edits, locked, onChange
       <td className="n">{row.number}</td>
       <td>
         <div className="identity">
-          <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />
+          {row.photoUrl ? <button type="button" className="photo-button" onClick={() => onPhoto(row)} aria-label={`Enlarge photo of ${row.name}`}>
+            <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />
+          </button> : <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />}
           <span className="name">{row.name}</span>
         </div>
       </td>
@@ -125,9 +129,20 @@ export function ScoreSheetPage() {
   const [edits, setEdits] = useState<Edits>({});
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const [photo, setPhoto] = useState<Row | null>(null);
+  const photoDialog = useRef<HTMLDialogElement>(null);
   const pending = useRef<Map<string, { candidateId: number; criterionId: number; points: number | null }>>(new Map());
+  const inFlight = useRef<Promise<boolean> | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const q = useDebounced(search);
+
+  useEffect(() => {
+    const dialog = photoDialog.current;
+    if (photo && dialog && !dialog.open) dialog.showModal();
+    else if (!photo && dialog?.open) dialog.close();
+  }, [photo]);
+  const openPhoto = useCallback((row: Row) => setPhoto(row), []);
 
   const categories = useMemo(() => (sheet.data?.rounds ?? []).flatMap((r) => r.categories.map((c) => ({ ...c, roundName: r.name }))), [sheet.data]);
   const category = categories.find((c) => c.id === categoryId) ?? null;
@@ -136,31 +151,52 @@ export function ScoreSheetPage() {
 
   // Start on the first category that still needs scores; move on when the open round changes.
   useEffect(() => {
-    if (categories.length && !categories.some((c) => c.id === categoryId)) setCategoryId((categories.find((c) => !c.submitted) ?? categories[0]).id);
-  }, [categories, categoryId]);
-  useEffect(() => setPage(1), [q, pageSize, categoryId]);
+    if (categories.length && !categories.some((c) => c.id === categoryId) && !pending.current.size && !inFlight.current) {
+      setCategoryId((categories.find((c) => !c.submitted) ?? categories[0]).id);
+    }
+  }, [categories, categoryId, save.kind]);
+  useEffect(() => setPage(1), [q, pageSize]);
 
   const rows = usePaginated<Row>(category ? `/judge/categories/${category.id}/candidates` : null, { page, pageSize, q });
   const locked = category?.submitted ?? false;
   const testingMode = sheet.data?.event.testingMode ?? false;
+  const hasInvalidEdits = Boolean(category && Object.values(edits).some((row) => Object.entries(row).some(([criterionId, value]) => {
+    const criterion = category.criteria.find((c) => c.id === Number(criterionId));
+    return value !== '' && criterion !== undefined && (value < criterion.min || value > criterion.max);
+  })));
+  const orphanedEdits = categoryId !== null && !category && (pending.current.size > 0 || inFlight.current !== null);
 
   const flush = useCallback(async () => {
     window.clearTimeout(timer.current);
-    if (!category || pending.current.size === 0) return;
-    const scores = [...pending.current.values()];
-    pending.current.clear();
-    setSave({ kind: 'saving' });
-    try {
-      await api('/judge/scores', { method: 'PUT', body: JSON.stringify({ categoryId: category.id, scores }) });
+    if (inFlight.current) return inFlight.current;
+    if (!category) return pending.current.size === 0;
+    if (pending.current.size === 0) return true;
+    const categoryId = category.id;
+    const saving = (async () => {
+      while (pending.current.size > 0) {
+        const scores = [...pending.current.values()];
+        pending.current.clear();
+        setSave({ kind: 'saving' });
+        try {
+          await api('/judge/scores', { method: 'PUT', body: JSON.stringify({ categoryId, scores }) });
+        } catch (err) {
+          for (const s of scores) {
+            const key = `${s.candidateId}:${s.criterionId}`;
+            if (!pending.current.has(key)) pending.current.set(key, s);
+          }
+          setSave({ kind: 'error', message: err instanceof Error ? err.message : 'Could not save' });
+          return false;
+        }
+      }
       setSave({ kind: 'saved', at: new Date() });
       sheet.reload();
-    } catch (err) {
-      // Keep the unsaved values so the next change retries them.
-      for (const s of scores) {
-        const key = `${s.candidateId}:${s.criterionId}`;
-        if (!pending.current.has(key)) pending.current.set(key, s);
-      }
-      setSave({ kind: 'error', message: err instanceof Error ? err.message : 'Could not save' });
+      return true;
+    })();
+    inFlight.current = saving;
+    try {
+      return await saving;
+    } finally {
+      if (inFlight.current === saving) inFlight.current = null;
     }
   }, [category, sheet]);
 
@@ -188,12 +224,17 @@ export function ScoreSheetPage() {
     [queue],
   );
 
-  // Save what is pending if the judge closes the tab.
+  // Browsers cannot guarantee an async save during unload; warn rather than promising it succeeded.
   useEffect(() => {
-    const onLeave = () => void flush();
+    const onLeave = (event: BeforeUnloadEvent) => {
+      if (pending.current.size || inFlight.current || hasInvalidEdits) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
     window.addEventListener('beforeunload', onLeave);
     return () => window.removeEventListener('beforeunload', onLeave);
-  }, [flush]);
+  }, [flush, hasInvalidEdits]);
 
   // Testing mode shortcuts fill the candidates on this page only, then save.
   const fill = useCallback(
@@ -226,7 +267,11 @@ export function ScoreSheetPage() {
 
   async function submit() {
     if (!category) return;
-    await flush();
+    if (hasInvalidEdits) {
+      setSubmitError('Fix out-of-range scores before submitting.');
+      return;
+    }
+    if (!(await flush())) return;
     if (!confirm(`Submit ${category.name}? Your scores lock, and only the tabulator can let you change them.`)) return;
     try {
       await api(`/judge/categories/${category.id}/submit`, { method: 'POST' });
@@ -239,13 +284,37 @@ export function ScoreSheetPage() {
     }
   }
 
-  function switchCategory(id: number) {
-    void flush();
-    setEdits({});
-    setCategoryId(id);
+  async function switchCategory(id: number) {
+    if (!category || id === category.id || switching) return;
+    if (hasInvalidEdits) {
+      setSubmitError('Fix out-of-range scores before switching categories.');
+      return;
+    }
+    setSwitching(true);
+    try {
+      if (!(await flush())) return;
+      setSubmitError(null);
+      setEdits({});
+      setSave({ kind: 'idle' });
+      setCategoryId(id);
+    } finally {
+      setSwitching(false);
+    }
   }
 
   const missing = category ? category.required - category.scored : 0;
+
+  async function safeLogout() {
+    if (hasInvalidEdits) {
+      setSubmitError('Fix out-of-range scores before logging out.');
+      return;
+    }
+    if (!(await flush())) {
+      setSubmitError('Scores have not been saved. Retry saving before logging out.');
+      return;
+    }
+    logout();
+  }
 
   return (
     <div className="judge-app">
@@ -257,13 +326,14 @@ export function ScoreSheetPage() {
         <span className="spacer" />
         {testingMode && <span className="pill warn">Testing mode</span>}
         <span className="hide-phone">{user?.name}</span>
-        <button className="btn" onClick={logout}>
+        <button className="btn" onClick={() => void safeLogout()} disabled={switching}>
           Log out
         </button>
       </header>
 
       <main className="sheet judge-sheet">
         <div className="canvas">
+          {orphanedEdits && <p className="error" role="alert">Your scoring category is no longer open, but this tab has unsaved scores. Keep it open and contact the tabulator.</p>}
           {sheet.error && (
             <p className="error">
               Couldn’t load your score sheet. <button className="link-btn" onClick={sheet.reload}>Retry</button>
@@ -302,8 +372,9 @@ export function ScoreSheetPage() {
                     {save.kind === 'saved' && `Saved ${timeFmt.format(save.at)}`}
                     {save.kind === 'error' && save.message}
                   </span>
+                  {save.kind === 'error' && <button className="link-btn" onClick={() => void flush()}>Retry save</button>}
                   {!locked && (
-                    <button className="btn primary" onClick={submit} disabled={missing > 0}>
+                    <button className="btn primary" onClick={submit} disabled={missing > 0 || switching || hasInvalidEdits}>
                       Submit {category.name}
                     </button>
                   )}
@@ -313,7 +384,7 @@ export function ScoreSheetPage() {
               {categories.length > 1 && (
                 <div className="tabs" role="tablist">
                   {categories.map((c) => (
-                    <button key={c.id} role="tab" aria-selected={c.id === category.id} onClick={() => switchCategory(c.id)}>
+                    <button key={c.id} role="tab" aria-selected={c.id === category.id} disabled={switching} onClick={() => void switchCategory(c.id)}>
                       {c.name}
                       <span className="count">{c.submitted ? 'Submitted' : `${c.scored}/${c.required}`}</span>
                     </button>
@@ -326,6 +397,7 @@ export function ScoreSheetPage() {
                 <span className="spacer" />
                 {testingMode && !locked && <span className="muted hide-phone">Shift + J fills empty scores at random. Shift + P gives every score its max.</span>}
               </div>
+              <p className="meta" style={{ marginBottom: 8 }}>Select a candidate's photo to enlarge it.</p>
               {submitError && <p className="error">{submitError}</p>}
               {!locked && missing > 0 && <p className="meta" style={{ marginBottom: 8 }}>You can submit once all {category.required} scores are in: {missing} to go.</p>}
 
@@ -348,7 +420,7 @@ export function ScoreSheetPage() {
                   </thead>
                   <tbody className={rows.loading ? 'loading' : undefined}>
                     {rows.data?.items.map((row) => (
-                      <ScoreRow key={row.id} row={row} criteria={category.criteria} edits={edits[row.id]} locked={locked} onChange={onChange} />
+                      <ScoreRow key={row.id} row={row} criteria={category.criteria} edits={edits[row.id]} locked={locked || switching} onChange={onChange} onPhoto={openPhoto} />
                     ))}
                   </tbody>
                 </table>
@@ -361,6 +433,12 @@ export function ScoreSheetPage() {
           )}
         </div>
       </main>
+      <dialog ref={photoDialog} className="candidate-photo-dialog" aria-label={photo ? `Photo of ${photo.name}` : 'Candidate photo'} onClose={() => setPhoto(null)}>
+        {photo && <>
+          <div className="title-row"><h2>No. {photo.number} {photo.name}</h2><button type="button" className="btn" onClick={() => setPhoto(null)}>Close</button></div>
+          <img src={photo.photoUrl ?? undefined} alt={photo.name} />
+        </>}
+      </dialog>
     </div>
   );
 }

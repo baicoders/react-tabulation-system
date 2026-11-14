@@ -106,7 +106,7 @@ All scoped to the judge's own event and to categories assigned to them, in round
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/judge/sheet` | `{ event, judge, rounds: [{ id, name, entries, categories: [{ id, name, criteria, scored, required, submitted }] }] }` |
-| GET | `/judge/categories/:categoryId/candidates` | Candidates in the round, paginated (`page`, `pageSize` up to 100, `q`), each with this judge's `scores` by criterion id, plus `locked` |
+| GET | `/judge/categories/:categoryId/candidates` | Candidates in the round, paginated (`page`, `pageSize` up to 100, `q`), each with `thumbUrl`, larger `photoUrl`, and this judge's `scores` by criterion id, plus `locked` |
 | PUT | `/judge/scores` | `{ categoryId, scores: [{ candidateId, criterionId, points }] }` saves drafts; `points: null` clears one. Values outside a criterion's range are refused. `409` after the category is submitted |
 | POST | `/judge/categories/:categoryId/submit` | Locks the category; `409` with the number still missing if any score is empty |
 
@@ -129,6 +129,8 @@ Pair-vote rounds come back in `/judge/sheet` as `pairRounds: [{ id, name, pairs:
 | POST | `/rounds/:id/reopen` | Clears the results and empties the next round, if it has not started |
 | POST | `/rounds/:id/pairs` | Pair-vote rounds: `{ method: "RANKED" \| "RANDOM" }`. Ranked pairs 1st with last of the round before (1 v 10, 2 v 9); random is a draw. Needs an even field; can be redone until the first vote |
 | POST | `/rounds/:id/judges/:judgeId/unlock` | Lets one judge change their submitted scores or votes in the round |
+| GET | `/rounds/:id/field` | Lists candidates from the closed previous round, with their existing score, rank and current selection for the next round. |
+| PUT | `/rounds/:id/field` | `{ candidateIds }` sets the next, not-yet-open round's field from the previous round. Existing scores are not changed. |
 | POST | `/rounds/:id/reset-scores` | `{ testOnly? }` (default true). Not allowed on a closed round |
 | POST | `/events/:eventId/start-over` | Rehearsals only (testing mode on): deletes every score, vote, pair and round result, and every round goes back to not started. Candidates, rounds and judges stay |
 

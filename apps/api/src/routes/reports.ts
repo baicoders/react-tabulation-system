@@ -114,15 +114,21 @@ reportsRouter.get('/events/:eventId/reports/overall', admin, async (req, res) =>
         a.candidate.number - b.candidate.number,
     );
 
+  // Pair outcomes do not establish places across different pairs.
+  const rankedRows = rows.filter((row) => row.reached?.kind !== 'PAIR_VOTE' && (row.roundRank !== null || row.lastClosedRank !== null));
   const pos = positions(
-    rows,
+    rankedRows,
     (a, b) => a.reached?.order === b.reached?.order && a.roundRank === b.roundRank && (a.roundRank !== null || (a.lastClosedRank !== null && a.lastClosedRank === b.lastClosedRank)),
   );
+  const positionsByCandidate = new Map(rankedRows.map((row, index) => [row.candidate.id, pos[index]]));
   const finalClosed = finalRound?.status === 'CLOSED';
   res.json({
     event,
     finalRound: finalRound ? { id: finalRound.id, name: finalRound.name, closed: finalClosed } : null,
-    rows: rows.map((r, i) => ({ ...r, position: pos[i], title: finalClosed && pos[i] <= 4 ? rankTitle(pos[i]) : null })),
+    rows: rows.map((r) => {
+      const position = positionsByCandidate.get(r.candidate.id) ?? null;
+      return { ...r, position, title: finalClosed && position !== null && position <= 4 ? rankTitle(position) : null };
+    }),
   });
 });
 
