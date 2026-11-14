@@ -12,6 +12,7 @@ import { JudgesPage } from './pages/admin/JudgesPage';
 import { ReportsPage } from './pages/admin/ReportsPage';
 import { RoundsPage } from './pages/admin/RoundsPage';
 import { SettingsPage } from './pages/admin/SettingsPage';
+import { DesignSystemPage } from './pages/admin/DesignSystemPage';
 import { ScoreSheetPage } from './pages/judge/ScoreSheetPage';
 
 function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
@@ -36,6 +37,7 @@ export function App() {
         <Route index element={<Navigate to="events" replace />} />
         <Route path="events" element={<EventsPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="design-system" element={<DesignSystemPage />} />
         <Route path="events/:eventId" element={<EventOverviewPage />} />
         <Route path="events/:eventId/candidates" element={<CandidatesPage />} />
         <Route path="events/:eventId/groups" element={<GroupsPage />} />
