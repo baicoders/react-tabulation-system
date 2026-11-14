@@ -101,8 +101,8 @@ test('category scoring, pair outcomes, and manual advancement through the API', 
       prisma.candidate.create({ data: { eventId, number: 3, name: 'Candidate C' } }),
       prisma.candidate.create({ data: { eventId, number: 4, name: 'Candidate D' } }),
     ]);
-    const vote = await prisma.round.create({ data: { eventId, order: 2, name: 'Pairs', kind: 'PAIR_VOTE', status: 'OPEN', advanceCount: 2 } });
-    const next = await prisma.round.create({ data: { eventId, order: 3, name: 'Final' } });
+    const vote = await prisma.round.create({ data: { eventId, order: 10, name: 'Pairs', kind: 'PAIR_VOTE', status: 'OPEN', advanceCount: 2 } });
+    const next = await prisma.round.create({ data: { eventId, order: 11, name: 'Final' } });
     await prisma.roundEntry.createMany({ data: [a, b, c, d].map((candidate) => ({ roundId: vote.id, candidateId: candidate.id })) });
     const [pairOne, pairTwo] = await Promise.all([
       prisma.pair.create({ data: { roundId: vote.id, candidateAId: a.id, candidateBId: b.id, order: 1 } }),
@@ -134,7 +134,7 @@ test('category scoring, pair outcomes, and manual advancement through the API', 
     assert.equal(Number(preserved.score), 0);
     assert.equal((await request(`/rounds/${next.id}/field`, 'PUT', { candidateIds: [a.id, b.id, c.id, d.id] })).status, 200);
     await prisma.round.update({ where: { id: next.id }, data: { kind: 'PAIR_VOTE', status: 'OPEN', advanceCount: 1 } });
-    const manualNext = await prisma.round.create({ data: { eventId, order: 4, name: 'Manual final' } });
+    const manualNext = await prisma.round.create({ data: { eventId, order: 12, name: 'Manual final' } });
     const [pairThree, pairFour] = await Promise.all([
       prisma.pair.create({ data: { roundId: next.id, candidateAId: a.id, candidateBId: b.id, order: 1 } }),
       prisma.pair.create({ data: { roundId: next.id, candidateAId: c.id, candidateBId: d.id, order: 2 } }),
