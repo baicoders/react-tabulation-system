@@ -100,8 +100,8 @@ setupRouter.delete('/rounds/:id', async (req, res) => {
 setupRouter.post('/rounds/:id/categories', async (req, res) => {
   const roundId = id.parse(req.params.id);
   const body = z.object({ name, weight: percent.default(null) }).parse(req.body);
-  const count = await prisma.category.count({ where: { roundId } });
-  res.status(201).json(await prisma.category.create({ data: { ...body, roundId, order: count } }));
+  const last = await prisma.category.aggregate({ where: { roundId }, _max: { order: true } });
+  res.status(201).json(await prisma.category.create({ data: { ...body, roundId, order: (last._max.order ?? -1) + 1 } }));
 });
 
 setupRouter.patch('/categories/:id', async (req, res) => {
@@ -110,7 +110,12 @@ setupRouter.patch('/categories/:id', async (req, res) => {
 });
 
 setupRouter.delete('/categories/:id', async (req, res) => {
-  await prisma.category.delete({ where: { id: id.parse(req.params.id) } });
+  const categoryId = id.parse(req.params.id);
+  const category = await prisma.category.findUnique({ where: { id: categoryId }, select: { round: { select: { eventId: true } } } });
+  if (!category) return res.status(404).json({ error: 'Category not found.' });
+  const deleted = await prisma.category.deleteMany({ where: { id: categoryId, round: { status: 'PENDING' }, criteria: { none: { scores: { some: {} } } } } });
+  if (deleted.count === 0) return res.status(409).json({ error: 'Only categories in a not-started round with no scores can be deleted.' });
+  publish(category.round.eventId, { type: 'round' });
   res.status(204).end();
 });
 

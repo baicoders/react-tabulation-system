@@ -241,7 +241,7 @@ function RoundPanel({ round, onChange }: { round: Round; onChange: () => void })
             Categories are ranked separately. For the cut, leave every category weight blank for equal shares, or set every weight so they add up to 100%.
           </p>}
           {round.categories.map((c) => (
-            <CategoryBlock key={c.id} category={c} heading={c.name === round.name ? 'Criterion' : c.name} showCutWeight={round.categories.length > 1} onChange={onChange} />
+            <CategoryBlock key={c.id} category={c} heading={c.name === round.name ? 'Criterion' : c.name} showCutWeight={round.categories.length > 1} canDelete={round.status === 'PENDING'} onChange={onChange} />
           ))}
           {round.categories.length === 0 && <div className="empty">No criteria yet. Add a category, then its criteria.</div>}
           <AddCategoryForm roundId={round.id} onChange={onChange} />
@@ -251,12 +251,28 @@ function RoundPanel({ round, onChange }: { round: Round; onChange: () => void })
   );
 }
 
-function CategoryBlock({ category, heading, showCutWeight, onChange }: { category: Category; heading: string; showCutWeight: boolean; onChange: () => void }) {
+function CategoryBlock({ category, heading, showCutWeight, canDelete, onChange }: { category: Category; heading: string; showCutWeight: boolean; canDelete: boolean; onChange: () => void }) {
   const weights = category.criteria.map((c) => c.weight);
   const weighted = weights.some((w) => w !== null);
   const total = weights.reduce<number>((sum, w) => sum + (w ?? 0), 0);
   const [cutWeight, setCutWeight] = useState(category.weight === null ? '' : String(category.weight));
   const [weightError, setWeightError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function removeCategory() {
+    if (!confirm(`Delete category "${category.name}" and its criteria and judge assignments? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      await api(`/categories/${category.id}`, { method: 'DELETE' });
+      setDeleteError(null);
+      onChange();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Could not delete category');
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   async function removeCriterion(id: number) {
     await api(`/criteria/${id}`, { method: 'DELETE' });
@@ -265,7 +281,11 @@ function CategoryBlock({ category, heading, showCutWeight, onChange }: { categor
 
   return (
     <section className="category-setup">
-      <h3 className="section-title">{category.name}</h3>
+      <div className="category-setup-heading">
+        <h3 className="section-title">{category.name}</h3>
+        <button type="button" className="link-btn danger" onClick={removeCategory} disabled={!canDelete || deleting} title={!canDelete ? 'Only categories in a not-started round can be deleted.' : undefined} aria-label={`Delete category ${category.name}`}>Delete category</button>
+      </div>
+      {deleteError && <p className="error" role="alert">{deleteError}</p>}
       {showCutWeight && <form className="toolbar" onSubmit={async (e) => {
         e.preventDefault();
         try {
