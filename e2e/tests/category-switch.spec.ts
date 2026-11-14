@@ -49,7 +49,7 @@ test('category switching retains context and prevents loss after a failed save',
   await expect(page.getByRole('dialog', { name: 'Photo of Candidate 21' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(photo).toBeFocused();
-  const score = page.getByLabel('Performance for Candidate 21');
+  const score = page.locator('input:visible[aria-label="Performance for Candidate 21"]');
   await score.fill('11');
   await page.getByRole('tab', { name: /Costume/ }).click();
   await expect(page.getByText('Fix out-of-range scores before switching categories.')).toBeVisible();
@@ -61,13 +61,14 @@ test('category switching retains context and prevents loss after a failed save',
   await page.getByRole('button', { name: 'Retry save' }).click();
   await expect(page.getByText(/Saved/)).toBeVisible();
   await page.getByRole('tab', { name: /Costume/ }).click();
-  await expect(page.getByLabel('Design for Candidate 21')).toBeVisible();
+  const design = page.locator('input:visible[aria-label="Design for Candidate 21"]');
+  await expect(design).toBeVisible();
   holdNextSave = true;
-  await page.getByLabel('Design for Candidate 21').fill('9');
+  await design.fill('9');
   await page.getByRole('tab', { name: /Production/ }).click();
   await expect(page.getByRole('tab', { name: /Costume/ })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: /Production/ })).toBeDisabled();
   releaseSave!();
-  await expect(page.getByLabel('Performance for Candidate 21')).toHaveValue('8');
+  await expect(score).toHaveValue('8');
   expect(saved.get('20:21:201')).toBe(9);
 });
