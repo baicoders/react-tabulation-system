@@ -150,7 +150,7 @@ const STAGES: StageSpec[] = [
     // Gown and Deba Teh shared the same ten candidates. The historical Top 5 used both categories,
     // but its exact weighting needs verification; the replay preserves the actual next-stage roster.
     name: 'DEBA TEH (DEBATE CHALLENGE)',
-    advanceCount: 5,
+    advanceCount: null,
     categories: [
       {
         code: '106',
