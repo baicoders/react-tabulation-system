@@ -109,7 +109,7 @@ function PairsPanel({
 }) {
   const votesCast = tab.pairs.reduce((sum, p) => sum + p.castA + p.castB, 0);
   const side = (c: PairSide, won: boolean, right: boolean) => (
-    <span className={right ? 'side right' : 'side'}>
+    <div className={right ? 'side right' : 'side'}>
       {!right && <CandidatePhoto src={c.thumbUrl} name={c.name} size={32} />}
       <span>
         <span className={won ? 'won' : undefined}>{c.name}</span>
@@ -119,7 +119,7 @@ function PairsPanel({
         </span>
       </span>
       {right && <CandidatePhoto src={c.thumbUrl} name={c.name} size={32} />}
-    </span>
+    </div>
   );
 
   return (

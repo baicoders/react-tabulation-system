@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import type { EventDetail, Group, Round } from '../../api/types';
 import { CandidatePhoto } from '../../components/CandidatePhoto';
 import { useBranding } from '../../branding/BrandingContext';
@@ -106,7 +106,7 @@ function Signatures({ names, label }: { names: string[]; label: string }) {
   return (
     <div className="signatures print-only">
       <p className="meta">{label}</p>
-      <div className="signature-grid">
+      <div className={`signature-grid${names.length === 1 ? ' signature-grid-single' : ''}`}>
         {names.map((n) => (
           <div key={n} className="signature">
             <span className="signature-line" />
@@ -231,13 +231,17 @@ interface CategoryData {
   round: { id: number; name: string; status: string };
   groupValueId: number | null;
   judges: number;
+  totalJudges: number;
+  judgeNames: string[];
   judgesSubmitted: number;
   complete: boolean;
-  rows: { candidate: ReportCandidate; score: number | null; rank: number | null }[];
+  rawMayDiffer: boolean;
+  rows: { candidate: ReportCandidate; score: number | null; rawTotal: number | null; rawPercentage: number | null; rank: number | null }[];
 }
 
 export function CategoryReport({ event, params, set, version }: ViewProps) {
   const meta = useSheetMeta(event);
+  const [showAll, setShowAll] = useState(false);
   const rounds = useResource<Round[]>(live(`/events/${event.id}/rounds`, version));
   const categories = (rounds.data ?? []).filter((r) => r.kind === 'SCORED' && r._count.entries > 0)
     .flatMap((r) => r.categories.map((c) => ({ ...c, roundName: r.name })));
@@ -254,31 +258,79 @@ export function CategoryReport({ event, params, set, version }: ViewProps) {
   function excel() {
     if (!d) return;
     downloadExcel(`${event.name} ${title}`, 'Category', [
-      ['Rank', 'No.', 'Candidate', 'Groups', 'Average score'],
-      ...d.rows.map((r): Cell[] => [r.rank, r.candidate.number, r.candidate.name, groupNames(r.candidate), r.score]),
+      ['Rank', 'No.', 'Candidate', 'Groups', 'Raw score', 'Raw percentage', ...(showAll ? ['Ranking score (out of 100)'] : [])],
+      ...d.rows.map((r): Cell[] => [r.rank, r.candidate.number, r.candidate.name, groupNames(r.candidate), r.rawTotal, r.rawPercentage, ...(showAll ? [r.score] : [])]),
     ], meta(title, `${d.judgesSubmitted} of ${d.judges} judges submitted`, d.complete && d.round.status === 'CLOSED' ? 'Final' : 'Provisional'));
   }
 
   return <>
     <ReportHead event={event} title={title}
-      sub={d && `${d.complete && d.round.status === 'CLOSED' ? 'Final' : 'Provisional: results can change'}. ${d.judgesSubmitted} of ${d.judges} assigned judges submitted. Ranks use full calculated values; displayed scores are rounded.`}
+      sub={d && `${d.complete && d.round.status === 'CLOSED' ? 'Official results' : 'Provisional results — incomplete or open'}. Total judges: ${d.totalJudges}; ${d.judgesSubmitted} of ${d.judges} assigned judges submitted.${d.rawMayDiffer ? ' Rankings use weighted scores or exclude extremes, so raw points may not explain rank. Show all columns for ranking scores.' : ''}`}
       controls={<>
         <select className="input" value={selected.id} onChange={(e) => set({ category: e.target.value })} aria-label="Category">
-          {categories.map((c) => <option key={c.id} value={c.id}>{c.roundName}: {c.name}</option>)}
+          {categories.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.roundName})</option>)}
         </select>
         <GroupSelect groups={event.groups} value={group} onChange={(v) => set({ group: v })} />
+        <label><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Show all columns</label>
       </>} onExcel={excel} disabled={!d} />
-    {!d ? <Loading error={data.error} retry={data.reload} /> : <div className="table-wrap">
-      <table className="report-table">
-        <thead><tr><th className="n">Rank</th><th className="n">No.</th><th>Candidate</th><th className="n">Average score</th></tr></thead>
+    {!d ? <Loading error={data.error} retry={data.reload} /> : <><div className="table-wrap">
+      <table className="report-table category-ranking-table">
+        <thead><tr><th className="n">Rank</th><th className="n no-print">No.</th><th>Candidate</th><th className="n">Raw score</th><th className="n">Percentage</th>{showAll && <th className="n">Ranking score / 100</th>}</tr></thead>
         <tbody>{d.rows.map((r) => <tr key={r.candidate.id}>
-          <td className="n">{r.rank ?? '-'}</td><td className="n">{r.candidate.number}</td>
+          <td className="n">{r.rank ?? '-'}{r.rank !== null && d.rows.filter((row) => row.rank === r.rank).length > 1 ? ' (tie)' : ''}</td><td className="n no-print">{r.candidate.number}</td>
           <td>{r.candidate.name}<span className="sub">{groupNames(r.candidate)}</span></td>
-          <td className="n">{fmt(r.score)}</td>
+          <td className="n">{fmt(r.rawTotal)}</td><td className="n">{r.rawPercentage === null ? '-' : `${fmt(r.rawPercentage)}%`}</td>{showAll && <td className="n">{fmt(r.score)}</td>}
         </tr>)}</tbody>
       </table>
       {d.rows.length === 0 && <div className="empty">No candidates in this group.</div>}
-    </div>}
+    </div><Signatures names={d.judgeNames} label="Official signatures" /></>}
+  </>;
+}
+
+/* ------------------------------------------------------------------ combined categories */
+
+interface CombinedData {
+  categories: { id: number; name: string; roundName: string; weight: number }[];
+  rows: { candidate: ReportCandidate; values: (number | null)[]; total: number | null; percentage: number | null; rank: number | null }[];
+}
+
+export function CombinedCategoriesReport({ event, version }: ViewProps) {
+  const meta = useSheetMeta(event);
+  const rounds = useResource<Round[]>(live(`/events/${event.id}/rounds`, version));
+  const judges = useResource<{ name: string }[]>(`/events/${event.id}/judges`);
+  const categories = (rounds.data ?? []).filter((r) => r.kind === 'SCORED' && r.status === 'CLOSED').flatMap((r) => r.categories.map((c) => ({ ...c, roundName: r.name })));
+  const [selected, setSelected] = useState<number[]>([]);
+  const [weights, setWeights] = useState<Record<number, string>>({});
+  const [advanced, setAdvanced] = useState(false);
+  const [request, setRequest] = useState<string | null>(null);
+  const data = useResource<CombinedData>(request ? live(`/events/${event.id}/reports/combined-categories?${request}`, version) : null);
+  const query = request ? new URLSearchParams(request) : null;
+  const d = data.data && query && data.data.categories.map((c) => c.id).join(',') === query.get('categoryIds') && data.data.categories.map((c) => c.weight).join(',') === query.get('weights') ? data.data : null;
+  const title = 'Combined categories';
+  function excel() {
+    if (!d) return;
+    downloadExcel(`${event.name} ${title}`, title, [
+      ['Rank', 'No.', 'Candidate', ...d.categories.map((c) => `${c.name} (×${c.weight})`), 'Raw total', 'Percentage'],
+      ...d.rows.map((r): Cell[] => [r.rank, r.candidate.number, r.candidate.name, ...r.values, r.total, r.percentage]),
+    ], meta(title, 'Raw points × multiplier; incomplete candidates are unranked'));
+  }
+  return <>
+    <ReportHead event={event} title={title} sub="Raw points × multiplier. Categories with more possible points or judges contribute more. Candidates missing a selected category or a score are unranked." onExcel={excel} disabled={!d} />
+    <div className="panel no-print">
+      <h3 className="section-title">Choose closed categories</h3>
+      {!rounds.data ? <Loading error={rounds.error} retry={rounds.reload} /> : categories.length === 0 ? <p className="muted">No scored categories are closed yet.</p> : categories.map((c) => <div key={c.id} style={{ margin: '8px 0' }}>
+        <label><input type="checkbox" checked={selected.includes(c.id)} onChange={(e) => { setSelected((old) => e.target.checked ? [...old, c.id] : old.filter((id) => id !== c.id)); setRequest(null); }} /> {c.name} <span className="muted">({c.roundName})</span></label>
+        {advanced && selected.includes(c.id) && <label> Multiplier <input className="input num" type="number" min="0.0001" max="10000" step="0.0001" style={{ width: 100 }} value={weights[c.id] ?? '1'} onChange={(e) => { setWeights((old) => ({ ...old, [c.id]: e.target.value })); setRequest(null); }} aria-label={`${c.name} multiplier`} /></label>}
+      </div>)}
+      <button type="button" className="link-btn" onClick={() => setAdvanced((v) => !v)} aria-expanded={advanced}>Advanced weights</button>{' '}
+      <button type="button" className="btn primary" disabled={selected.length === 0 || selected.some((id) => !/^\d+(\.\d{1,4})?$/.test(weights[id] ?? '1') || Number(weights[id] ?? '1') <= 0 || Number(weights[id] ?? '1') > 10000)} onClick={() => setRequest(new URLSearchParams({ categoryIds: selected.join(','), weights: selected.map((id) => Number(weights[id] ?? '1')).join(',') }).toString())}>Calculate</button>
+    </div>
+    {request && !d ? <Loading error={data.error} retry={data.reload} /> : d && <>
+      <p className="meta">{d.categories.map((c) => `${c.name} × ${c.weight}`).join(' + ')}</p>
+      <div className="table-wrap"><table className="report-table"><thead><tr><th>Rank</th><th>Candidate</th>{d.categories.map((c) => <th key={c.id} className="n">{c.name} (raw)</th>)}<th className="n">Total</th><th className="n">Percentage</th></tr></thead>
+        <tbody>{d.rows.map((r) => <tr key={r.candidate.id}><td>{r.rank ?? 'Incomplete'}{r.rank !== null && d.rows.filter((other) => other.rank === r.rank).length > 1 ? ' (tie)' : ''}</td><td>{r.candidate.name}<span className="sub">{groupNames(r.candidate)}</span></td>{r.values.map((v, i) => <td key={d.categories[i].id} className="n">{fmt(v)}</td>)}<td className="n">{fmt(r.total)}</td><td className="n">{r.percentage === null ? '—' : `${fmt(r.percentage)}%`}</td></tr>)}</tbody></table></div>
+      <Signatures names={(judges.data ?? []).map((j) => j.name)} label="Official signatures" />
+    </>}
   </>;
 }
 
@@ -509,11 +561,11 @@ export function CandidateReport({ event, params, set, version }: ViewProps) {
       ) : !d ? (
         <Loading error={data.error} retry={data.reload} />
       ) : (
-        <div className="stack">
+        <div className="stack candidate-report-sections">
           {d.rounds.map((r) => (
             <div key={r.id} className="report-block">
-              <h3 className="section-title">
-                {r.name}
+              <h3 className="meta candidate-round-heading">
+                Stage: {r.name}
                 <span className="muted" style={{ fontWeight: 400 }}>
                   {' '}
                   {r.status === 'CLOSED' ? `Rank ${r.rank ?? '-'}${r.score !== null && r.kind === 'SCORED' ? `, ${fmt(r.score)}` : ''}` : 'Still open'}
@@ -544,8 +596,9 @@ export function CandidateReport({ event, params, set, version }: ViewProps) {
                         ))}
                       </tr>
                     )}
-                    {r.categories.flatMap((c) =>
-                      c.criteria.map((cr) => {
+                    {r.categories.map((c) => <Fragment key={c.id}>
+                      <tr className="report-category-heading"><th colSpan={d.judges.length + 2} scope="colgroup">{c.name}</th></tr>
+                      {c.criteria.map((cr) => {
                         const given = d.judges.map((j) => cr.points[j.id]).filter((p): p is number => p !== undefined);
                         return (
                           <tr key={cr.id}>
@@ -564,8 +617,8 @@ export function CandidateReport({ event, params, set, version }: ViewProps) {
                             <td className="n">{given.length ? fmt(given.reduce((a, b) => a + b, 0) / given.length) : '-'}</td>
                           </tr>
                         );
-                      }),
-                    )}
+                      })}
+                    </Fragment>)}
                   </tbody>
                 </table>
               </div>
