@@ -114,13 +114,15 @@ const ScoreRow = memo(function ScoreRow({ row, criteria, edits, locked, onChange
 });
 
 // On narrow phones, show one candidate at a time in reading order instead of a wide grid.
-const ScoreCard = memo(function ScoreCard({ row, criteria, edits, locked, onChange }: RowProps) {
+const ScoreCard = memo(function ScoreCard({ row, criteria, edits, locked, onChange, onPhoto }: RowProps) {
   const value = (cid: number): Points | undefined => (edits && cid in edits ? edits[cid] : row.scores[cid]);
   const total = categoryTotal(criteria, value);
   return (
     <article className="judge-score-card" aria-label={`${row.name}, candidate ${row.number}`}>
       <header className="judge-card-header">
-        <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />
+        {row.photoUrl ? <button type="button" className="photo-button" onClick={() => onPhoto(row)} aria-label={`Enlarge photo of ${row.name}`}>
+          <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />
+        </button> : <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />}
         <div className="judge-card-identity"><span>Candidate {row.number}</span><h2>{row.name}</h2></div>
         <div className="judge-card-total"><span>Total</span><strong>{total === null ? '—' : total.toFixed(2)}</strong></div>
       </header>
@@ -455,7 +457,7 @@ export function ScoreSheetPage() {
               </div>
               <div className={rows.loading ? 'judge-score-cards loading' : 'judge-score-cards'} aria-busy={rows.loading}>
                 {rows.data?.items.map((row) => (
-                  <ScoreCard key={row.id} row={row} criteria={category.criteria} edits={edits[row.id]} locked={locked} onChange={onChange} />
+                  <ScoreCard key={row.id} row={row} criteria={category.criteria} edits={edits[row.id]} locked={locked || switching} onChange={onChange} onPhoto={openPhoto} />
                 ))}
               </div>
               {rows.data && rows.data.items.length === 0 && <div className="empty">No candidate matches this search.</div>}

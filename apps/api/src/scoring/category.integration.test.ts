@@ -35,6 +35,7 @@ test('category scoring, pair outcomes, and manual advancement through the API', 
     const pair = await prisma.round.create({ data: { eventId, order: 2, name: 'Pair stage', kind: 'PAIR_VOTE' } });
     assert.equal((await request(`/rounds/${pair.id}`, 'PATCH', { name: 'Renamed pair stage' })).status, 200);
     assert.equal((await prisma.round.findUniqueOrThrow({ where: { id: pair.id } })).kind, 'PAIR_VOTE');
+    await prisma.round.delete({ where: { id: pair.id } });
     await prisma.roundEntry.createMany({ data: [a, b].map((candidate) => ({ roundId: round.id, candidateId: candidate.id })) });
     const [production, costume] = await Promise.all([
       prisma.category.create({ data: { roundId: round.id, name: 'Production' } }),
