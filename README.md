@@ -29,7 +29,7 @@ Every screen, arranged by user journey (admin setup, judge scoring, running the 
 
 - **Admin**: manage events, candidates (with pictures), rounds, categories, criteria and judges; bulk import from CSV or Excel; reports by candidate, judge, category and overall.
 - **Judge**: log in with their name and a password set by the Admin, then score candidates by category.
-- **General scoring engine**: average or rank-sum scoring, weights, carry-over between rounds, drop highest and lowest, tie detection at the cut line. See [docs/scoring.md](docs/scoring.md).
+- **General scoring engine**: average scores, weights, carry-over between rounds, drop highest and lowest, tie detection at the cut line. See [docs/scoring.md](docs/scoring.md).
 - **Built for large fields**: server-side pagination, debounced search, WebP thumbnails, lazy-loaded images and memoized score rows keep screens smooth with hundreds of candidates. See [docs/performance.md](docs/performance.md).
 - **Testing mode**: rehearse with fake scores. Judges get `Shift + J` (random scores) and `Shift + P` (perfect scores) shortcuts, and **Start over** clears the rehearsal.
 - **Go live / Finish event**: judges can log in only to the one live event.
@@ -114,7 +114,6 @@ erDiagram
     int order
     string name
     enum kind "SCORED, PAIR_VOTE"
-    enum scoreMethod "AVERAGE, RANK_SUM"
     int advanceCount "Top N"
     decimal carryOverWeight
     boolean dropExtremes

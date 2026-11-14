@@ -22,11 +22,6 @@ enum RoundKind {
   PAIR_VOTE
 }
 
-enum ScoreMethod {
-  AVERAGE
-  RANK_SUM
-}
-
 enum TieBreak {
   SHARED_RANK
   CATEGORY_SCORE
@@ -122,7 +117,6 @@ model Round {
   order           Int
   name            String
   kind            RoundKind    @default(SCORED)
-  scoreMethod     ScoreMethod  @default(AVERAGE)
   // Top N that advance to the next round. Null means everyone advances or this is the final round.
   advanceCount    Int?
   // Share of earlier rounds carried into this round's final score, 0 to 1. Null means start fresh.
@@ -144,7 +138,7 @@ model RoundEntry {
   candidateId Int
   advanced    Boolean?
   // Filled when the round closes: the final score (after any carry-over) and the rank.
-  score       Decimal?  @db.Decimal(10, 4)
+  score       Decimal?  @db.Decimal(38, 20)
   rank        Int?
   round       Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
   candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)

@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { shares, tabulateRound } from '../lib/tabulate';
 import { requireRole } from '../middleware/auth';
 import { rankTitle } from '../scoring';
+import { categoryResults } from '../scoring/category';
 
 // Reports read what judges submitted and what closing a round saved. Nothing here changes data.
 export const reportsRouter = Router();
@@ -34,6 +35,48 @@ function positions<T>(rows: T[], same: (a: T, b: T) => boolean): number[] {
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+
+// Category scores and ranks are independent of the round's combined cut result.
+reportsRouter.get('/categories/:id/report', admin, async (req, res) => {
+  const { groupValueId } = groupQuery.parse(req.query);
+  const category = await prisma.category.findUniqueOrThrow({
+    where: { id: id.parse(req.params.id) },
+    include: {
+      criteria: { orderBy: { order: 'asc' } },
+      judges: { select: { judgeId: true } },
+      round: { include: { event: { select: { testingMode: true } }, entries: { include: { candidate: { select: candidateSelect } } } } },
+    },
+  });
+  const entries = category.round.entries;
+  const candidateIds = entries.map((entry) => entry.candidateId);
+  const judgeIds = category.judges.map((judge) => judge.judgeId);
+  const scores = await prisma.score.findMany({
+    where: { criterionId: { in: category.criteria.map((c) => c.id) }, candidateId: { in: candidateIds }, judgeId: { in: judgeIds },
+      ...(category.round.event.testingMode ? {} : { isTest: false }) },
+    select: { judgeId: true, candidateId: true, criterionId: true, points: true, status: true },
+  });
+  const visible = entries.filter((entry) => !groupValueId || entry.candidate.groupValues.some((group) => group.groupValue.id === groupValueId));
+  const result = categoryResults({
+    candidateIds,
+    activeCandidateIds: visible.map((entry) => entry.candidateId),
+    judgeIds,
+    criteria: category.criteria.map((c) => ({ id: c.id, maxPoints: Number(c.maxPoints), weight: c.weight === null ? null : Number(c.weight) })),
+    scores: scores.map((score) => ({ ...score, points: Number(score.points) })),
+    dropExtremes: category.round.dropExtremes,
+  });
+  const ranks = new Map(result.ranking.map((row) => [row.candidateId, row.rank]));
+  const averages = new Map(result.scores.map((row) => [row.candidateId, row.score]));
+  res.json({
+    category: { id: category.id, name: category.name },
+    round: { id: category.round.id, name: category.round.name, status: category.round.status },
+    groupValueId: groupValueId ?? null,
+    judges: judgeIds.length,
+    judgesSubmitted: result.submittedJudgeIds.length,
+    complete: result.complete,
+    rows: visible.map((entry) => ({ candidate: candidateDto(entry.candidate), score: averages.get(entry.candidateId) ?? null, rank: ranks.get(entry.candidateId) ?? null }))
+      .sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER) || a.candidate.number - b.candidate.number),
+  });
+});
 
 // Overall placing: how far each candidate got, then their rank in that round. The final round's top places get titles.
 reportsRouter.get('/events/:eventId/reports/overall', admin, async (req, res) => {
@@ -71,15 +114,21 @@ reportsRouter.get('/events/:eventId/reports/overall', admin, async (req, res) =>
         a.candidate.number - b.candidate.number,
     );
 
+  // Pair outcomes do not establish places across different pairs.
+  const rankedRows = rows.filter((row) => row.reached?.kind !== 'PAIR_VOTE' && (row.roundRank !== null || row.lastClosedRank !== null));
   const pos = positions(
-    rows,
+    rankedRows,
     (a, b) => a.reached?.order === b.reached?.order && a.roundRank === b.roundRank && (a.roundRank !== null || (a.lastClosedRank !== null && a.lastClosedRank === b.lastClosedRank)),
   );
+  const positionsByCandidate = new Map(rankedRows.map((row, index) => [row.candidate.id, pos[index]]));
   const finalClosed = finalRound?.status === 'CLOSED';
   res.json({
     event,
     finalRound: finalRound ? { id: finalRound.id, name: finalRound.name, closed: finalClosed } : null,
-    rows: rows.map((r, i) => ({ ...r, position: pos[i], title: finalClosed && pos[i] <= 4 ? rankTitle(pos[i]) : null })),
+    rows: rows.map((r) => {
+      const position = positionsByCandidate.get(r.candidate.id) ?? null;
+      return { ...r, position, title: finalClosed && position !== null && position <= 4 ? rankTitle(position) : null };
+    }),
   });
 });
 
@@ -91,7 +140,7 @@ reportsRouter.get('/rounds/:id/report', admin, async (req, res) => {
     where: { id: roundId },
     include: {
       event: { select: { id: true, name: true, testingMode: true } },
-      categories: { orderBy: { order: 'asc' }, include: { criteria: { orderBy: { order: 'asc' } } } },
+      categories: { orderBy: { order: 'asc' }, include: { criteria: { orderBy: { order: 'asc' } }, judges: true } },
       entries: { include: { candidate: { select: candidateSelect } } },
     },
   });
@@ -102,21 +151,20 @@ reportsRouter.get('/rounds/:id/report', admin, async (req, res) => {
   const criterionIds = round.categories.flatMap((c) => c.criteria.map((cr) => cr.id));
   const scores = await prisma.score.findMany({
     where: { criterionId: { in: criterionIds }, status: 'SUBMITTED', ...(round.event.testingMode ? {} : { isTest: false }) },
-    select: { judgeId: true, candidateId: true, criterionId: true, points: true },
+    select: { judgeId: true, candidateId: true, criterionId: true, points: true, status: true },
   });
 
-  const categoryAverage = (candidateId: number, categoryId: number): number | null => {
-    const cat = round.categories.find((c) => c.id === categoryId)!;
-    const crShares = shares(cat.criteria);
-    const byJudge = new Map<number, number>();
-    for (const s of scores) {
-      const i = cat.criteria.findIndex((cr) => cr.id === s.criterionId);
-      if (s.candidateId !== candidateId || i < 0) continue;
-      byJudge.set(s.judgeId, (byJudge.get(s.judgeId) ?? 0) + (Number(s.points) / Number(cat.criteria[i].maxPoints)) * crShares[i]);
-    }
-    if (byJudge.size === 0) return null;
-    return r2([...byJudge.values()].reduce((a, b) => a + b, 0) / byJudge.size);
-  };
+  const categoryAverages = new Map(round.categories.map((cat) => {
+    const result = categoryResults({
+      candidateIds: round.entries.map((entry) => entry.candidateId),
+      activeCandidateIds: round.entries.map((entry) => entry.candidateId),
+      judgeIds: cat.judges.map((judge) => judge.judgeId),
+      criteria: cat.criteria.map((c) => ({ id: c.id, maxPoints: Number(c.maxPoints), weight: c.weight === null ? null : Number(c.weight) })),
+      scores: scores.map((score) => ({ ...score, points: Number(score.points) })),
+      dropExtremes: round.dropExtremes,
+    });
+    return [cat.id, new Map(result.scores.map((score) => [score.candidateId, score.score]))] as const;
+  }));
 
   const rows = round.entries
     .filter((e) => inGroup(e.candidate))
@@ -126,7 +174,7 @@ reportsRouter.get('/rounds/:id/report', admin, async (req, res) => {
       const pair = tab.pairs.find((p) => p.a.id === e.candidateId || p.b.id === e.candidateId);
       return {
         candidate: candidateDto(e.candidate),
-        categories: Object.fromEntries(round.categories.map((c) => [c.id, categoryAverage(e.candidateId, c.id)])),
+        categories: Object.fromEntries(round.categories.map((c) => [c.id, categoryAverages.get(c.id)?.get(e.candidateId) ?? null])),
         score: closed ? (e.score === null ? null : Number(e.score)) : (standing?.score ?? null),
         rank: closed ? e.rank : (standing?.rank ?? null),
         advanced: e.advanced,
@@ -146,7 +194,7 @@ reportsRouter.get('/rounds/:id/report', admin, async (req, res) => {
   const groupPos = positions(rows, (a, b) => a.rank !== null && a.rank === b.rank);
   res.json({
     event: round.event,
-    round: { id: round.id, name: round.name, kind: round.kind, status: round.status, scoreMethod: round.scoreMethod, advanceCount: round.advanceCount },
+    round: { id: round.id, name: round.name, kind: round.kind, status: round.status, advanceCount: round.advanceCount },
     categories: round.categories.map((c) => ({ id: c.id, name: c.name, weight: c.weight === null ? null : Number(c.weight) })),
     judgesSubmitted: tab.judges.filter((j) => j.done).length,
     judges: tab.judges.filter((j) => j.required > 0 || round.kind === 'PAIR_VOTE').length,

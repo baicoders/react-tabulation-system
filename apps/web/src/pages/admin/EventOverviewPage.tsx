@@ -23,8 +23,10 @@ interface Tabulation {
   round: { id: number; name: string; status: string; kind: string; advanceCount: number | null };
   entries: number;
   complete: boolean;
+  manualAdvancement?: boolean;
+  configurationErrors?: string[];
   judges: { id: number; name: string; required: number; scored: number; done: boolean }[];
-  standings: { candidateId: number; number: number; name: string; thumbUrl: string | null; score: number; rank: number }[];
+  standings: { candidateId: number; number: number; name: string; thumbUrl: string | null; score: number; rank: number | null }[];
   direction: 'asc' | 'desc';
   advancingIds: number[];
   tieAtCutLine: number[];
@@ -50,6 +52,45 @@ interface PairTally {
   votesB: number;
   winnerId: number | null;
   tied: boolean;
+}
+
+interface FieldData {
+  round: { id: number; name: string };
+  previous: { name: string };
+  candidates: { id: number; number: number; name: string; score: number | null; rank: number | null; selected: boolean }[];
+}
+
+function ManualFieldPanel({ roundId, onSaved, onCancel }: { roundId: number; onSaved: () => void; onCancel: () => void }) {
+  const field = useResource<FieldData>(`/rounds/${roundId}/field`);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (field.data) setSelected(field.data.candidates.filter((candidate) => candidate.selected).map((candidate) => candidate.id)); }, [field.data]);
+  async function save() {
+    setBusy(true);
+    try {
+      await api(`/rounds/${roundId}/field`, { method: 'PUT', body: JSON.stringify({ candidateIds: selected }) });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update the field');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <div className="panel">
+    <h2>Choose who competes next</h2>
+    <p className="muted">Select candidates from the previous round. Their existing scores and ranks do not change.</p>
+    {field.error && <p className="error">{field.error}</p>}
+    {field.data && <>
+      <div className="table-wrap"><table><thead><tr><th>Advance</th><th>No.</th><th>Candidate</th><th>Previous rank</th><th>Previous score</th></tr></thead>
+        <tbody>{field.data.candidates.map((candidate) => <tr key={candidate.id}>
+          <td><input type="checkbox" checked={selected.includes(candidate.id)} aria-label={`Advance ${candidate.name}`} onChange={(e) => setSelected((current) => e.target.checked ? [...current, candidate.id] : current.filter((id) => id !== candidate.id))} /></td>
+          <td>{candidate.number}</td><td>{candidate.name}</td><td>{candidate.rank ?? '—'}</td><td>{candidate.score === null ? '—' : candidate.score.toFixed(2)}</td>
+        </tr>)}</tbody></table></div>
+      <div className="form-actions"><button className="btn primary" disabled={busy} onClick={() => void save()}>Save {plural(selected.length, 'candidate')}</button><button className="btn" onClick={onCancel}>Cancel</button></div>
+    </>}
+    {error && <p className="error">{error}</p>}
+  </div>;
 }
 
 /** Pairs for a pair-vote round, and the live tally of judges' votes once they are set. */
@@ -162,6 +203,7 @@ export function EventOverviewPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [tie, setTie] = useState<number[] | null>(null);
+  const [editingField, setEditingField] = useState(false);
 
   // Live updates: the server pushes a notice the moment a judge saves or a round changes, and only the data
   // reloads, never the page. A burst of notices (a judge saving a page) becomes one reload.
@@ -223,14 +265,14 @@ export function EventOverviewPage() {
   const closeRound = (includeTies: boolean) =>
     open &&
     run(async () => {
-      const res = await api<{ advanced: number; nextRound: { name: string } | null }>(`/rounds/${open.round.id}/close`, {
+      const res = await api<{ advanced: number; manualAdvancement: boolean; nextRound: { name: string } | null }>(`/rounds/${open.round.id}/close`, {
         method: 'POST',
         body: JSON.stringify({ includeTies }),
       });
       setMessage(
-        res.nextRound && open.round.advanceCount
+        res.nextRound && !res.manualAdvancement
           ? `${open.round.name} is closed. ${res.advanced} candidates go on to ${res.nextRound.name}.`
-          : `${open.round.name} is closed.`,
+          : res.nextRound ? `${open.round.name} is closed. Choose who competes in ${res.nextRound.name}.` : `${open.round.name} is closed.`,
       );
     });
   const reopen = (r: RoundSummary) => {
@@ -395,27 +437,36 @@ export function EventOverviewPage() {
                   <span className="muted">
                     {t?.complete
                       ? open.round.kind === 'PAIR_VOTE'
-                        ? `Sends the ${cut ?? open.field} pair winners on.`
+                        ? t.manualAdvancement ? 'Choose the advancing candidates after closing.' : `Sends the ${cut} pair winners on.`
                         : `Ranks the field and sends the Top ${cut ?? open.field} on.`
                       : open.round.kind === 'PAIR_VOTE' && t && t.pairs.length === 0
                         ? 'Set the pairs first.'
                         : t && t.pairTies.length > 0
                           ? 'A pair is tied on votes; a judge needs to change a vote.'
-                          : 'Available once every judge has submitted.'}
+                          : t?.configurationErrors?.length ? 'Fix the setup issues below.' : 'Available once every judge has submitted.'}
                   </span>
                 </>
               )}
               {!open && nextToOpen && (
-                <button className="btn primary" disabled={busy} onClick={() => openRound(nextToOpen.round)}>
+                <button className="btn primary" disabled={busy || editingField} onClick={() => openRound(nextToOpen.round)}>
                   Open {nextToOpen.round.name}
                 </button>
               )}
+              {!open && nextToOpen && lastClosed && <button className="btn" disabled={busy || editingField} onClick={() => setEditingField(true)}>
+                Choose who competes in {nextToOpen.round.name}
+              </button>}
               {!open && lastClosed && (
                 <button className="link-btn" disabled={busy} onClick={() => reopen(lastClosed.round)}>
                   Reopen {lastClosed.round.name}
                 </button>
               )}
             </div>
+            {open && t?.configurationErrors?.length ? <div className="notice" role="status" style={{ marginTop: 8 }}>
+              <p>Before closing this round:</p>
+              <ul>{t.configurationErrors.map((error) => <li key={error}>{error}</li>)}</ul>
+              <Link className="link-btn" to="rounds">Review rounds and criteria</Link>{' · '}
+              <Link className="link-btn" to="judges">Review judge assignments</Link>
+            </div> : null}
             {message && (
               <p className={failed ? 'error' : 'muted'} style={{ marginTop: 8 }} role="status">
                 {message}
@@ -432,6 +483,9 @@ export function EventOverviewPage() {
               </div>
             )}
           </div>
+
+          {!open && nextToOpen && editingField && <ManualFieldPanel key={nextToOpen.round.id} roundId={nextToOpen.round.id}
+            onCancel={() => setEditingField(false)} onSaved={() => { setEditingField(false); reloadEvent(); reloadEvents(); }} />}
 
           {open && t && open.round.kind === 'PAIR_VOTE' && (
             <PairsPanel
@@ -456,7 +510,7 @@ export function EventOverviewPage() {
                   <p className="muted" style={{ marginTop: 4 }}>
                     {t.standings.length === 0
                       ? 'Standings appear as judges submit.'
-                      : `From ${plural(doneJudges, 'submitted judge')} so far. ${t.direction === 'asc' ? 'Rank-sum: lower is better.' : 'Average out of 100.'}`}
+                      : `From ${plural(doneJudges, 'submitted judge')} so far. Average out of 100.`}
                   </p>
                 </div>
                 {t.standings.length > shown.length && <span className="meta">Top {shown.length} of {t.standings.length}</span>}

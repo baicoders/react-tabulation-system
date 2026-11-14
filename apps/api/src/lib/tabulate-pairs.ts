@@ -1,6 +1,5 @@
 import { prisma } from './prisma';
 import { pictureUrls } from './images';
-import { topN, type RankedCandidate } from '../scoring';
 import type { JudgeProgress, StandingRow } from './tabulate';
 
 export interface PairCandidate {
@@ -27,8 +26,7 @@ export interface PairTally {
 
 /**
  * A pair-vote round (for example Deba Teh): each judge picks one winner per pair.
- * A pair's winner has the most submitted votes. The field is ranked pair winners first, then by votes received,
- * then by rank in the round before, so with N pairs and Top N the pair winners are exactly who go on.
+ * A pair's winner has the most submitted votes. There is no ranking across different pairs.
  */
 export async function tabulatePairRound(roundId: number) {
   const round = await prisma.round.findUniqueOrThrow({
@@ -88,50 +86,37 @@ export async function tabulatePairRound(roundId: number) {
   });
   const complete = pairs.length > 0 && progress.length > 0 && progress.every((p) => p.done);
 
-  // Rank in the round before breaks ties in votes received.
-  const previous = await prisma.round.findFirst({
-    where: { eventId: round.eventId, order: { lt: round.order }, status: 'CLOSED' },
-    orderBy: { order: 'desc' },
-    include: { entries: { select: { candidateId: true, rank: true } } },
-  });
-  const previousRank = new Map(previous?.entries.map((e) => [e.candidateId, e.rank ?? Number.MAX_SAFE_INTEGER]) ?? []);
-
   const paired = new Set(pairs.flatMap((p) => [p.a.id, p.b.id]));
   const rows = round.entries
     .filter((e) => paired.has(e.candidateId))
     .map((e) => {
       const pair = pairs.find((p) => p.a.id === e.candidateId || p.b.id === e.candidateId)!;
       const votes = pair.a.id === e.candidateId ? pair.votesA : pair.votesB;
-      return { candidate: e.candidate, won: pair.winnerId === e.candidateId ? 1 : 0, votes, prev: previousRank.get(e.candidateId) ?? Number.MAX_SAFE_INTEGER };
+      return { candidate: e.candidate, votes };
     })
-    .sort((x, y) => y.won - x.won || y.votes - x.votes || x.prev - y.prev);
+    .sort((x, y) => x.candidate.number - y.candidate.number);
 
-  const ranked: RankedCandidate[] = [];
-  rows.forEach((r, i) => {
-    const before = rows[i - 1];
-    const same = before && before.won === r.won && before.votes === r.votes && before.prev === r.prev;
-    ranked.push({ candidateId: r.candidate.id, score: r.votes, rank: same ? ranked[i - 1].rank : i + 1 });
-  });
-
-  const standings: StandingRow[] = rows.map((r, i) => ({
+  const standings: StandingRow[] = rows.map((r) => ({
     candidateId: r.candidate.id,
     number: r.candidate.number,
     name: r.candidate.name,
     thumbUrl: pictureUrls(r.candidate.picturePath).thumbUrl,
     score: r.votes,
-    rank: ranked[i].rank,
+    rank: null,
   }));
-  const cut = round.advanceCount ? topN(ranked, round.advanceCount) : { advancing: ranked, tieAtCutLine: [] };
+  const winners = pairs.flatMap((pair) => pair.winnerId === null ? [] : [pair.winnerId]);
+  const manualAdvancement = round.advanceCount === null || round.advanceCount !== pairs.length;
 
   return {
-    round: { id: round.id, name: round.name, order: round.order, status: round.status, kind: round.kind, scoreMethod: round.scoreMethod, advanceCount: round.advanceCount },
+    round: { id: round.id, name: round.name, order: round.order, status: round.status, kind: round.kind, advanceCount: round.advanceCount },
     entries: round.entries.length,
     judges: progress,
     complete: complete && pairs.every((p) => !p.tied),
     standings,
     direction: 'desc' as const,
-    advancingIds: cut.advancing.map((r) => r.candidateId),
-    tieAtCutLine: cut.tieAtCutLine.map((r) => r.candidateId),
+    advancingIds: manualAdvancement ? [] : winners,
+    manualAdvancement,
+    tieAtCutLine: [] as number[],
     pairs,
     pairTies: pairs.filter((p) => p.tied).map((p) => p.id),
     unpaired: round.entries.filter((e) => !paired.has(e.candidateId)).length,

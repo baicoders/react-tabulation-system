@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { publish } from '../lib/live';
 import { tabulateRound } from '../lib/tabulate';
 import { requireRole } from '../middleware/auth';
+import { categoryWeightError } from '../scoring/category';
 
 // Running a round on the night: open it, watch the tabulation, close it and send the Top N on.
 export const roundsRouter = Router();
@@ -21,6 +22,11 @@ roundsRouter.get('/rounds/:id/tabulation', admin, async (req, res) => {
 
 roundsRouter.post('/rounds/:id/open', admin, async (req, res) => {
   const round = await prisma.round.findUniqueOrThrow({ where: { id: id.parse(req.params.id) }, include: { _count: { select: { entries: true } } } });
+  if (round.kind === 'SCORED') {
+    const categories = await prisma.category.findMany({ where: { roundId: round.id }, select: { weight: true } });
+    const error = categoryWeightError(categories.map((c) => c.weight === null ? null : Number(c.weight)));
+    if (error) return res.status(409).json({ error });
+  }
   const otherOpen = await prisma.round.findFirst({ where: { eventId: round.eventId, status: 'OPEN', id: { not: round.id } } });
   if (otherOpen) return res.status(409).json({ error: `Close ${otherOpen.name} before opening ${round.name}` });
 
@@ -43,12 +49,18 @@ roundsRouter.post('/rounds/:id/open', admin, async (req, res) => {
 roundsRouter.post('/rounds/:id/close', admin, async (req, res) => {
   const { includeTies } = z.object({ includeTies: z.boolean().default(false) }).parse(req.body ?? {});
   const roundId = id.parse(req.params.id);
+  const categories = await prisma.category.findMany({ where: { roundId }, select: { weight: true } });
+  const weightError = categoryWeightError(categories.map((c) => c.weight === null ? null : Number(c.weight)));
+  if (weightError) return res.status(409).json({ error: weightError });
   const tab = await tabulateRound(roundId);
   if (tab.round.status !== 'OPEN') return res.status(409).json({ error: `${tab.round.name} is not open` });
   if (tab.round.kind === 'PAIR_VOTE' && tab.pairs.length === 0) return res.status(409).json({ error: 'Set the pairs first' });
   if (!tab.complete && tab.pairTies.length === 0) {
     const waiting = tab.judges.filter((j) => j.required > 0 && !j.done).map((j) => j.name);
-    return res.status(409).json({ error: `Waiting on ${waiting.join(', ')}` });
+    if (waiting.length) return res.status(409).json({ error: `Waiting on ${waiting.join(', ')}` });
+    const unready = await prisma.category.findMany({ where: { roundId }, include: { _count: { select: { criteria: true, judges: true } } } });
+    const names = unready.filter((c) => c._count.criteria === 0 || c._count.judges === 0).map((c) => c.name);
+    return res.status(409).json({ error: names.length ? `Add criteria and assign judges for ${names.join(', ')} before closing` : 'This round is not ready to close' });
   }
   if (tab.unpaired > 0) return res.status(409).json({ error: `${tab.unpaired} candidates have no pair yet` });
   if (tab.pairTies.length > 0) {
@@ -63,23 +75,63 @@ roundsRouter.post('/rounds/:id/close', admin, async (req, res) => {
 
   const round = await prisma.round.findUniqueOrThrow({ where: { id: roundId } });
   const advancing = new Set(tab.advancingIds);
+  const manualAdvancement = round.advanceCount === null || ('manualAdvancement' in tab && tab.manualAdvancement);
   const next = await prisma.round.findFirst({ where: { eventId: round.eventId, order: { gt: round.order } }, orderBy: { order: 'asc' } });
 
   await prisma.$transaction([
     ...tab.standings.map((s) =>
       prisma.roundEntry.update({
         where: { roundId_candidateId: { roundId, candidateId: s.candidateId } },
-        data: { score: s.score, rank: s.rank, advanced: round.advanceCount ? advancing.has(s.candidateId) : null },
+        data: { score: s.score, rank: s.rank, advanced: manualAdvancement ? null : advancing.has(s.candidateId) },
       }),
     ),
     prisma.round.update({ where: { id: roundId }, data: { status: 'CLOSED' } }),
-    ...(next && round.advanceCount
+    ...(next && !manualAdvancement
       ? [prisma.roundEntry.createMany({ data: tab.advancingIds.map((candidateId) => ({ roundId: next.id, candidateId })), skipDuplicates: true })]
       : []),
   ]);
   await audit(round.eventId, req.user!.name, 'round.close', { roundId, name: round.name, advanced: tab.advancingIds.length, includeTies });
   publish(round.eventId, { type: 'round', roundId: round.id });
-  res.json({ closed: true, advanced: tab.advancingIds.length, nextRound: next ? { id: next.id, name: next.name } : null });
+  res.json({ closed: true, advanced: manualAdvancement ? 0 : tab.advancingIds.length, manualAdvancement, nextRound: next ? { id: next.id, name: next.name } : null });
+});
+
+// The tabulator can adjust the next field after a cut, without changing the previous scores.
+roundsRouter.get('/rounds/:id/field', admin, async (req, res) => {
+  const round = await prisma.round.findUniqueOrThrow({ where: { id: id.parse(req.params.id) }, include: { entries: { select: { candidateId: true } } } });
+  const previous = await prisma.round.findFirst({
+    where: { eventId: round.eventId, order: { lt: round.order } }, orderBy: { order: 'desc' },
+    include: { entries: { include: { candidate: { select: { id: true, number: true, name: true } } } } },
+  });
+  if (!previous || previous.status !== 'CLOSED') return res.status(409).json({ error: 'Close the previous round before choosing the field.' });
+  const selected = new Set(round.entries.map((entry) => entry.candidateId));
+  res.json({
+    round: { id: round.id, name: round.name, status: round.status },
+    previous: { id: previous.id, name: previous.name },
+    candidates: previous.entries.map((entry) => ({
+      id: entry.candidateId, number: entry.candidate.number, name: entry.candidate.name,
+      score: entry.score === null ? null : Number(entry.score), rank: entry.rank, selected: selected.has(entry.candidateId),
+    })).sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER) || a.number - b.number),
+  });
+});
+
+roundsRouter.put('/rounds/:id/field', admin, async (req, res) => {
+  const round = await prisma.round.findUniqueOrThrow({ where: { id: id.parse(req.params.id) } });
+  if (round.status !== 'PENDING') return res.status(409).json({ error: 'The next round has already started; its field cannot be changed here.' });
+  const previous = await prisma.round.findFirst({ where: { eventId: round.eventId, order: { lt: round.order } }, orderBy: { order: 'desc' } });
+  if (!previous || previous.status !== 'CLOSED') return res.status(409).json({ error: 'Close the previous round before choosing the field.' });
+  const { candidateIds } = z.object({ candidateIds: z.array(z.number().int().positive()).max(500) }).parse(req.body);
+  const ids = [...new Set(candidateIds)];
+  const eligible = await prisma.roundEntry.count({ where: { roundId: previous.id, candidateId: { in: ids } } });
+  if (eligible !== ids.length) return res.status(400).json({ error: 'Only candidates from the previous round can be selected.' });
+  await prisma.$transaction([
+    prisma.roundEntry.deleteMany({ where: { roundId: round.id } }),
+    ...(ids.length ? [prisma.roundEntry.createMany({ data: ids.map((candidateId) => ({ roundId: round.id, candidateId })) })] : []),
+    prisma.roundEntry.updateMany({ where: { roundId: previous.id }, data: { advanced: false } }),
+    prisma.roundEntry.updateMany({ where: { roundId: previous.id, candidateId: { in: ids } }, data: { advanced: true } }),
+  ]);
+  await audit(round.eventId, req.user!.name, 'field.set', { roundId: round.id, candidateIds: ids });
+  publish(round.eventId, { type: 'round', roundId: round.id });
+  res.json({ selected: ids.length });
 });
 
 // Undo a close: the round opens again, its results are cleared and the next round empties if it has not started.

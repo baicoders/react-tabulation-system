@@ -4,13 +4,12 @@ import {
   applyCarryOver,
   assignRanks,
   averageScores,
-  rankSum,
   rankTitle,
   topN,
   type JudgeTotal,
 } from './index';
 
-// The worked example from the PRD: one generous judge decides the winner under averaging, not under rank-sum.
+// A worked example of averaging each judge's scores.
 const prdExample: JudgeTotal[] = [
   { judgeId: 1, candidateId: 1, total: 95 },
   { judgeId: 2, candidateId: 1, total: 80 },
@@ -24,26 +23,6 @@ test('average: candidate A wins the PRD example', () => {
   const ranked = assignRanks(averageScores(prdExample), 'desc');
   assert.equal(ranked[0].candidateId, 1);
   assert.equal(ranked[0].score.toFixed(1), '85.7');
-});
-
-test('rank-sum: candidate B wins the PRD example', () => {
-  const ranked = assignRanks(rankSum(prdExample), 'asc');
-  assert.deepEqual(
-    ranked.map((r) => [r.candidateId, r.score]),
-    [
-      [2, 4],
-      [1, 5],
-    ],
-  );
-});
-
-test('rank-sum: tied totals share the average rank', () => {
-  const sums = rankSum([
-    { judgeId: 1, candidateId: 1, total: 90 },
-    { judgeId: 1, candidateId: 2, total: 90 },
-    { judgeId: 1, candidateId: 3, total: 80 },
-  ]);
-  assert.deepEqual(new Map(sums.map((s) => [s.candidateId, s.score])), new Map([[1, 1.5], [2, 1.5], [3, 3]]));
 });
 
 test('average: dropExtremes removes highest and lowest with 5+ judges', () => {

@@ -1,14 +1,13 @@
 import { prisma } from './prisma';
 import { pictureUrls } from './images';
 import { tabulatePairRound, type PairTally } from './tabulate-pairs';
+import { categoryResults, categoryWeightError, combineCategoryAverages } from '../scoring/category';
+import { SCORED_POINTS } from '../scoring/measurement';
 import {
   applyCarryOver,
   assignRanks,
-  averageScores,
-  rankSum,
   topN,
   type CandidateScore,
-  type JudgeTotal,
 } from '../scoring';
 
 export interface JudgeProgress {
@@ -30,7 +29,7 @@ export interface StandingRow {
   name: string;
   thumbUrl: string | null;
   score: number;
-  rank: number;
+  rank: number | null;
 }
 
 /** Share of a criterion inside its category, in percent: its weight, or an equal split when no weights are set. */
@@ -98,45 +97,39 @@ async function tabulateScoredRound(roundId: number) {
     };
   });
   const scoring = progress.filter((p) => p.required > 0);
-  const complete = round.kind === 'SCORED' && scoring.length > 0 && scoring.every((p) => p.done);
-
-  // Judge totals from submitted scores only.
-  const submitted = scores.filter((s) => s.status === 'SUBMITTED');
-  const totals: JudgeTotal[] = [];
-  const catShares = shares(round.categories);
-  for (const judge of scoring) {
-    for (const candidateId of entryIds) {
-      let total = 0;
-      let weightUsed = 0;
-      round.categories.forEach((cat, ci) => {
-        if (!judge.submittedCategoryIds.includes(cat.id)) return;
-        const crShares = shares(cat.criteria);
-        let catScore = 0;
-        cat.criteria.forEach((cr, i) => {
-          const s = submitted.find((x) => x.judgeId === judge.id && x.candidateId === candidateId && x.criterionId === cr.id);
-          if (s) catScore += (Number(s.points) / Number(cr.maxPoints)) * crShares[i];
-        });
-        total += catScore * catShares[ci];
-        weightUsed += catShares[ci];
-      });
-      if (weightUsed > 0) totals.push({ judgeId: judge.id, candidateId, total: total / weightUsed });
-    }
+  const configurationErrors: string[] = [];
+  const weightError = categoryWeightError(round.categories.map((category) => category.weight === null ? null : Number(category.weight)));
+  if (weightError) configurationErrors.push(weightError);
+  if (round.categories.length === 0) configurationErrors.push('Add at least one category.');
+  for (const category of round.categories) {
+    if (category.criteria.length === 0) configurationErrors.push(`Add criteria for ${category.name}.`);
+    if (category.judges.length === 0) configurationErrors.push(`Assign at least one judge to ${category.name}.`);
   }
+  const complete = round.kind === 'SCORED' && scoring.length > 0 && scoring.every((p) => p.done) &&
+    configurationErrors.length === 0;
 
-  const direction = round.scoreMethod === 'RANK_SUM' ? 'asc' : 'desc';
-  let results: CandidateScore[] = round.scoreMethod === 'RANK_SUM' ? rankSum(totals) : averageScores(totals, { dropExtremes: round.dropExtremes });
+  const catShares = shares(round.categories);
+  const direction = 'desc' as const;
+  const categoryAverages = round.categories.map((category) => categoryResults({
+    candidateIds: entryIds,
+    activeCandidateIds: entryIds,
+    judgeIds: category.judges.map((judge) => judge.judgeId),
+    criteria: category.criteria.map((criterion) => ({ id: criterion.id, maxPoints: Number(criterion.maxPoints), weight: criterion.weight === null ? null : Number(criterion.weight) })),
+    scores: scores.map((score) => ({ ...score, points: Number(score.points) })),
+    dropExtremes: round.dropExtremes,
+  }));
+  const categoryCombined = weightError ? [] : combineCategoryAverages(entryIds, categoryAverages.map((category, index) => ({ measurement: SCORED_POINTS, weight: catShares[index], scores: category.scores })));
+  let results: CandidateScore[] = categoryCombined;
 
-  if (round.scoreMethod === 'AVERAGE') {
-    if (round.carryOverWeight !== null) {
-      const previous = await prisma.round.findFirst({
-        where: { eventId: round.eventId, order: { lt: round.order }, status: 'CLOSED', kind: 'SCORED' },
-        orderBy: { order: 'desc' },
-        include: { entries: { where: { candidateId: { in: entryIds } }, select: { candidateId: true, score: true } } },
-      });
-      if (previous) {
-        const earlier = previous.entries.filter((e) => e.score !== null).map((e) => ({ candidateId: e.candidateId, score: Number(e.score) }));
-        results = applyCarryOver(results, earlier, Number(round.carryOverWeight));
-      }
+  if (round.carryOverWeight !== null) {
+    const previous = await prisma.round.findFirst({
+      where: { eventId: round.eventId, order: { lt: round.order }, status: 'CLOSED', kind: 'SCORED' },
+      orderBy: { order: 'desc' },
+      include: { entries: { where: { candidateId: { in: entryIds } }, select: { candidateId: true, score: true } } },
+    });
+    if (previous) {
+      const earlier = previous.entries.filter((e) => e.score !== null).map((e) => ({ candidateId: e.candidateId, score: Number(e.score) }));
+      results = applyCarryOver(results, earlier, Number(round.carryOverWeight));
     }
   }
 
@@ -149,17 +142,18 @@ async function tabulateScoredRound(roundId: number) {
       number: c.number,
       name: c.name,
       thumbUrl: pictureUrls(c.picturePath).thumbUrl,
-      score: Math.round(r.score * 100) / 100,
+      score: r.score,
       rank: r.rank,
     };
   });
   const cut = round.advanceCount ? topN(ranked, round.advanceCount) : { advancing: ranked, tieAtCutLine: [] };
 
   return {
-    round: { id: round.id, name: round.name, order: round.order, status: round.status, kind: round.kind, scoreMethod: round.scoreMethod, advanceCount: round.advanceCount },
+    round: { id: round.id, name: round.name, order: round.order, status: round.status, kind: round.kind, advanceCount: round.advanceCount },
     entries: entryIds.length,
     judges: progress,
     complete,
+    configurationErrors,
     standings,
     direction,
     advancingIds: cut.advancing.map((r) => r.candidateId),
