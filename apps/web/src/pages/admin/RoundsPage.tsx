@@ -139,7 +139,7 @@ function RoundSettingsForm({
         </label>
         <label className="field">
           <span>Top how many go on</span>
-          <input className="input num" type="number" min={1} value={advance} onChange={(e) => setAdvance(e.target.value)} placeholder="Leave empty for the final" />
+          <input className="input num" type="number" min={1} value={advance} onChange={(e) => setAdvance(e.target.value)} placeholder="Leave empty for manual selection or final" />
         </label>
       </div>
       {kind === 'SCORED' && more && (
@@ -187,7 +187,7 @@ function RoundSettingsForm({
 function RoundPanel({ round, onChange }: { round: Round; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
   const meta = [
-    round.advanceCount ? `Top ${round.advanceCount} go on` : 'Final round',
+    round.advanceCount ? `Top ${round.advanceCount} go on` : 'No automatic cut',
     round.kind === 'PAIR_VOTE' ? 'Pair vote' : 'Average of scores',
     round.carryOverWeight ? `${Math.round(round.carryOverWeight * 100)}% carried over` : null,
     round.dropExtremes ? 'Highest and lowest dropped' : null,
