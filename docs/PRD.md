@@ -120,7 +120,7 @@ Everything belongs to an Event; a score is one judge's points for one candidate 
 | Pair, PairVote | two candidates; judge's chosen winner | For pair-vote rounds such as Deba Teh |
 | AuditLog | actor, action, details | Opening, closing, resets, imports |
 
-**Scoring rule.** Each judge's total for a candidate is out of 100: each criterion's points over its max, times its weight, summed. A candidate's round score is the average of the judges' totals. Other methods are chosen per round (see Scoring methods). Points outside a criterion's min-max are rejected.
+**Scoring rule.** Each judge's category total for a candidate is out of 100: each criterion's points over its max, times its weight, summed. Category scores average assigned judges' totals; a cut combines category averages. Points outside a criterion's min-max are rejected.
 
 ## Scoring methods
 
@@ -128,7 +128,7 @@ There is no official tabulation standard, so the Admin picks the scoring rules f
 
 | Setting | Options | Default |
 | --- | --- | --- |
-| Score method | Average of raw scores · Rank-sum · Pair vote | Average of raw scores |
+| Judging type | Scored criteria · Pair vote | Scored criteria |
 | Criterion weights | Percent of its category, must total 100% | Equal |
 | Category weights | Percent of the round, must total 100% | Equal |
 | Carry-over | Start fresh · Carry a share of earlier rounds (e.g. 30% earlier + 70% this round) | Start fresh |
@@ -138,15 +138,6 @@ There is no official tabulation standard, so the Admin picks the scoring rules f
 To keep setup simple, a round's form shows only its name, judging type and Top N. These settings sit under More settings for the events that need them.
 
 **Average of raw scores.** Each judge's points are summed per candidate, then averaged across judges; highest wins.
-
-**Rank-sum.** Each judge's scores are turned into ranks (1 = best), the ranks are added, and the lowest total wins. This keeps one generous or harsh judge from swinging the result.
-
-| Candidate | Judge 1 | Judge 2 | Judge 3 | Average | Rank-sum |
-| --- | --- | --- | --- | --- | --- |
-| A | 95 (rank 1) | 80 (rank 2) | 82 (rank 2) | 85.7, wins | 5 |
-| B | 85 (rank 2) | 86 (rank 1) | 85 (rank 1) | 85.3 | 4, wins |
-
-One high score from Judge 1 wins it for A under averaging; under rank-sum, B wins because two of three judges preferred B.
 
 **Carry-over.** With carry-over on, a round's final score is:
 

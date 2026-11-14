@@ -22,11 +22,6 @@ enum RoundKind {
   PAIR_VOTE
 }
 
-enum ScoreMethod {
-  AVERAGE
-  RANK_SUM
-}
-
 enum TieBreak {
   SHARED_RANK
   CATEGORY_SCORE
@@ -122,7 +117,6 @@ model Round {
   order           Int
   name            String
   kind            RoundKind    @default(SCORED)
-  scoreMethod     ScoreMethod  @default(AVERAGE)
   // Top N that advance to the next round. Null means everyone advances or this is the final round.
   advanceCount    Int?
   // Share of earlier rounds carried into this round's final score, 0 to 1. Null means start fresh.

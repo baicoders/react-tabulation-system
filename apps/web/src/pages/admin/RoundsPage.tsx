@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { api } from '../../api/client';
-import { METHOD_LABEL, TIE_LABEL, type Category, type Round, type RoundKind, type ScoreMethod, type TieBreak } from '../../api/types';
+import { TIE_LABEL, type Category, type Round, type RoundKind, type TieBreak } from '../../api/types';
 import { useResource } from '../../hooks/useResource';
 import { plural } from '../../lib/format';
 import { useAdmin } from './AdminLayout';
@@ -75,7 +75,6 @@ export function RoundsPage() {
 interface RoundBody {
   name: string;
   kind: RoundKind;
-  scoreMethod: ScoreMethod;
   advanceCount: number | null;
   carryOverWeight: number | null;
   dropExtremes: boolean;
@@ -97,14 +96,13 @@ function RoundSettingsForm({
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [kind, setKind] = useState<RoundKind>(initial?.kind ?? 'SCORED');
-  const [scoreMethod, setScoreMethod] = useState<ScoreMethod>(initial?.scoreMethod ?? 'AVERAGE');
   const [advance, setAdvance] = useState(initial?.advanceCount ? String(initial.advanceCount) : '');
   const [carry, setCarry] = useState(initial?.carryOverWeight ? String(Math.round(initial.carryOverWeight * 100)) : '');
   const [dropExtremes, setDropExtremes] = useState(initial?.dropExtremes ?? false);
   const [tieBreak, setTieBreak] = useState<TieBreak>(initial?.tieBreak ?? 'SHARED_RANK');
   // Most rounds need only a name and a cut. The rest opens on request, or by itself when a round already uses it.
   const [more, setMore] = useState(
-    Boolean(initial && (initial.scoreMethod !== 'AVERAGE' || initial.carryOverWeight || initial.dropExtremes || initial.tieBreak !== 'SHARED_RANK')),
+    Boolean(initial && (initial.carryOverWeight || initial.dropExtremes || initial.tieBreak !== 'SHARED_RANK')),
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -114,7 +112,6 @@ function RoundSettingsForm({
       await onSubmit({
         name,
         kind,
-        scoreMethod,
         advanceCount: advance ? Number(advance) : null,
         carryOverWeight: carry ? Number(carry) / 100 : null,
         dropExtremes,
@@ -148,16 +145,6 @@ function RoundSettingsForm({
       {kind === 'SCORED' && more && (
         <div className="form-row" style={{ marginTop: 16 }}>
           <label className="field">
-            <span>Score method</span>
-            <select className="input" value={scoreMethod} onChange={(e) => setScoreMethod(e.target.value as ScoreMethod)}>
-              {Object.entries(METHOD_LABEL).map(([k, label]) => (
-                <option key={k} value={k}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
             <span>Carry over from earlier rounds (%)</span>
             <input className="input num" type="number" min={0} max={100} value={carry} onChange={(e) => setCarry(e.target.value)} placeholder="0, start fresh" />
           </label>
@@ -181,7 +168,7 @@ function RoundSettingsForm({
       )}
       {kind === 'SCORED' && (
         <button type="button" className="link-btn" style={{ marginTop: 16 }} onClick={() => setMore((m) => !m)}>
-          {more ? 'Fewer settings' : 'More settings: score method, carry-over, ties'}
+          {more ? 'Fewer settings' : 'More settings: carry-over, ties'}
         </button>
       )}
       {error && <p className="error" style={{ marginTop: 12 }}>{error}</p>}
@@ -201,7 +188,7 @@ function RoundPanel({ round, onChange }: { round: Round; onChange: () => void })
   const [editing, setEditing] = useState(false);
   const meta = [
     round.advanceCount ? `Top ${round.advanceCount} go on` : 'Final round',
-    round.kind === 'PAIR_VOTE' ? 'Pair vote' : METHOD_LABEL[round.scoreMethod],
+    round.kind === 'PAIR_VOTE' ? 'Pair vote' : 'Average of scores',
     round.carryOverWeight ? `${Math.round(round.carryOverWeight * 100)}% carried over` : null,
     round.dropExtremes ? 'Highest and lowest dropped' : null,
   ].filter(Boolean);

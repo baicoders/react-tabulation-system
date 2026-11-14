@@ -1,6 +1,5 @@
 export type EventStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED';
 export type RoundKind = 'SCORED' | 'PAIR_VOTE';
-export type ScoreMethod = 'AVERAGE' | 'RANK_SUM';
 export type TieBreak = 'SHARED_RANK' | 'CATEGORY_SCORE' | 'FIRST_PLACE_COUNT' | 'ADMIN_DECIDES';
 export type RoundStatus = 'PENDING' | 'OPEN' | 'CLOSED';
 
@@ -32,7 +31,6 @@ export interface RoundSummary {
   order: number;
   name: string;
   kind: RoundKind;
-  scoreMethod: ScoreMethod;
   advanceCount: number | null;
   carryOverWeight: number | null;
   dropExtremes: boolean;
@@ -74,7 +72,6 @@ export interface Judge {
 }
 
 export const STATUS_LABEL: Record<EventStatus, string> = { DRAFT: 'Setting up', ACTIVE: 'Live', CLOSED: 'Finished' };
-export const METHOD_LABEL: Record<ScoreMethod, string> = { AVERAGE: 'Average of scores', RANK_SUM: 'Rank-sum' };
 export const TIE_LABEL: Record<TieBreak, string> = {
   SHARED_RANK: 'Shared rank',
   CATEGORY_SCORE: 'Higher category score',
