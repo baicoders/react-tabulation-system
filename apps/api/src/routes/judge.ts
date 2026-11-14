@@ -31,7 +31,7 @@ async function categoryForJudge(judgeId: number, eventId: number, categoryId: nu
     where: { id: categoryId },
     include: {
       criteria: { orderBy: { order: 'asc' } },
-      round: { include: { event: { select: { id: true, testingMode: true } }, _count: { select: { entries: true } } } },
+      round: { include: { event: { select: { id: true, testingMode: true } }, _count: { select: { entries: { where: { withdrawn: false } } } } } },
       judges: { where: { judgeId } },
     },
   });
@@ -51,7 +51,7 @@ judgeRouter.get('/judge/sheet', async (req, res) => {
     where: { eventId: event.id, status: 'OPEN', kind: 'SCORED' },
     orderBy: { order: 'asc' },
     include: {
-      _count: { select: { entries: true } },
+      _count: { select: { entries: { where: { withdrawn: false } } } },
       categories: {
         where: { judges: { some: { judgeId } } },
         orderBy: { order: 'asc' },
@@ -66,9 +66,10 @@ judgeRouter.get('/judge/sheet', async (req, res) => {
     const categories = [];
     for (const c of r.categories) {
       const criterionIds = c.criteria.map((cr) => cr.id);
-      const scored = await prisma.score.count({ where: { judgeId, criterionId: { in: criterionIds }, candidate: { roundEntries: { some: { roundId: r.id } } } } });
+      const active = { candidate: { roundEntries: { some: { roundId: r.id, withdrawn: false } } } };
+      const scored = await prisma.score.count({ where: { judgeId, criterionId: { in: criterionIds }, ...active } });
       const required = criterionIds.length * r._count.entries;
-      const submitted = required > 0 && (await submittedCount(judgeId, criterionIds)) >= required;
+      const submitted = required > 0 && (await prisma.score.count({ where: { judgeId, criterionId: { in: criterionIds }, status: 'SUBMITTED', ...active } })) >= required;
       categories.push({
         id: c.id,
         name: c.name,
@@ -90,6 +91,7 @@ judgeRouter.get('/judge/sheet', async (req, res) => {
     include: {
       _count: { select: { entries: true } },
       pairs: {
+        where: { candidateA: { withdrawn: false }, candidateB: { withdrawn: false } },
         orderBy: { order: 'asc' },
         include: {
           candidateA: { select: { id: true, number: true, name: true, picturePath: true } },
@@ -117,7 +119,7 @@ judgeRouter.get('/judge/sheet', async (req, res) => {
 
 /** The pair-vote round, checked: open, in the judge's event. */
 async function pairRoundForJudge(eventId: number, roundId: number) {
-  const round = await prisma.round.findUnique({ where: { id: roundId }, include: { event: { select: { testingMode: true } }, pairs: true } });
+  const round = await prisma.round.findUnique({ where: { id: roundId }, include: { event: { select: { testingMode: true } }, pairs: { where: { candidateA: { withdrawn: false }, candidateB: { withdrawn: false } } } } });
   if (!round || round.eventId !== eventId || round.kind !== 'PAIR_VOTE') throw new HttpError(404, 'This round is not a pair vote in your event');
   if (round.status !== 'OPEN') throw new HttpError(409, `${round.name} is not open for voting`);
   return round;
@@ -130,8 +132,9 @@ judgeRouter.put('/judge/votes', async (req, res) => {
     const pair = await prisma.pair.findUnique({ where: { id: body.pairId } });
     if (!pair) throw new HttpError(404, 'Pair not found');
     const round = await pairRoundForJudge(req.user!.eventId!, pair.roundId);
+    if (!round.pairs.some((active) => active.id === pair.id)) throw new HttpError(409, 'This pair is no longer active because a candidate withdrew.');
     if (body.winnerId !== pair.candidateAId && body.winnerId !== pair.candidateBId) throw new HttpError(400, 'Pick one of the two candidates in this pair');
-    const locked = await prisma.pairVote.count({ where: { judgeId, status: 'SUBMITTED', pair: { roundId: round.id } } });
+    const locked = await prisma.pairVote.count({ where: { judgeId, status: 'SUBMITTED', pairId: { in: round.pairs.map((p) => p.id) } } });
     if (locked > 0) throw new HttpError(409, 'You already submitted your votes. Ask the tabulator to let you change them.');
     await prisma.pairVote.upsert({
       where: { pairId_judgeId: { pairId: pair.id, judgeId } },
@@ -149,10 +152,11 @@ judgeRouter.post('/judge/rounds/:roundId/submit-votes', async (req, res) => {
   try {
     const judgeId = req.user!.id;
     const round = await pairRoundForJudge(req.user!.eventId!, id.parse(req.params.roundId));
-    const voted = await prisma.pairVote.count({ where: { judgeId, pair: { roundId: round.id } } });
+    const activePairIds = round.pairs.map((p) => p.id);
+    const voted = await prisma.pairVote.count({ where: { judgeId, pairId: { in: activePairIds } } });
     if (round.pairs.length === 0) throw new HttpError(409, 'The pairs are not set yet');
     if (voted < round.pairs.length) throw new HttpError(409, `${round.pairs.length - voted} pairs still need your vote`);
-    await prisma.pairVote.updateMany({ where: { judgeId, pair: { roundId: round.id } }, data: { status: 'SUBMITTED' } });
+    await prisma.pairVote.updateMany({ where: { judgeId, pairId: { in: activePairIds } }, data: { status: 'SUBMITTED' } });
     publish(req.user!.eventId!, { type: 'votes', roundId: round.id });
     res.json({ submitted: voted });
   } catch (err) {
@@ -188,6 +192,7 @@ judgeRouter.get('/judge/categories/:categoryId/candidates', async (req, res) => 
           number: true,
           name: true,
           picturePath: true,
+          roundEntries: { where: { roundId: category.roundId }, select: { withdrawn: true } },
           scores: { where: { judgeId: req.user!.id, criterionId: { in: criterionIds } }, select: { criterionId: true, points: true } },
         },
       }),
@@ -198,6 +203,7 @@ judgeRouter.get('/judge/categories/:categoryId/candidates', async (req, res) => 
         id: c.id,
         number: c.number,
         name: c.name,
+        withdrawn: c.roundEntries[0]?.withdrawn ?? false,
         ...pictureUrls(c.picturePath),
         scores: Object.fromEntries(c.scores.map((s) => [s.criterionId, Number(s.points)])),
       })),
@@ -228,7 +234,7 @@ judgeRouter.put('/judge/scores', async (req, res) => {
     if ((await submittedCount(judgeId, [...criteria.keys()])) > 0) throw new HttpError(409, 'You already submitted this category. Ask the tabulator to unlock it.');
 
     const candidateIds = [...new Set(body.scores.map((s) => s.candidateId))];
-    const inRound = await prisma.roundEntry.count({ where: { roundId: category.roundId, candidateId: { in: candidateIds } } });
+    const inRound = await prisma.roundEntry.count({ where: { roundId: category.roundId, candidateId: { in: candidateIds }, withdrawn: false } });
     if (inRound !== candidateIds.length) throw new HttpError(400, 'Some candidates are not in this round');
 
     for (const s of body.scores) {
@@ -265,7 +271,7 @@ judgeRouter.post('/judge/categories/:categoryId/submit', async (req, res) => {
     const judgeId = req.user!.id;
     const category = await categoryForJudge(judgeId, req.user!.eventId!, id.parse(req.params.categoryId));
     const criterionIds = category.criteria.map((c) => c.id);
-    const where = { judgeId, criterionId: { in: criterionIds }, candidate: { roundEntries: { some: { roundId: category.roundId } } } };
+    const where = { judgeId, criterionId: { in: criterionIds }, candidate: { roundEntries: { some: { roundId: category.roundId, withdrawn: false } } } };
     const scored = await prisma.score.count({ where });
     const required = criterionIds.length * category.round._count.entries;
     if (scored < required) throw new HttpError(409, `${required - scored} scores are still missing`);

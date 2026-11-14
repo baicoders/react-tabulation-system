@@ -22,6 +22,7 @@ interface ReportCandidate {
   id: number;
   number: number;
   name: string;
+  withdrawn: boolean;
   thumbUrl: string | null;
   groups: { id: number; name: string; groupId: number }[];
 }
@@ -195,7 +196,7 @@ export function OverallReport({ event, params, set, version }: ViewProps) {
                       <div className="identity">
                         <CandidatePhoto src={r.candidate.thumbUrl} name={r.candidate.name} size={32} />
                         <span>
-                          <span className="name">{r.candidate.name}</span>
+                          <span className="name">{r.candidate.name}{r.candidate.withdrawn ? ' · Withdrawn' : ''}</span>
                           {r.title && <span className="title-tag">{r.title}</span>}
                           <span className="sub">{groupNames(r.candidate)}</span>
                           <span className="sub narrow-only">
@@ -236,7 +237,7 @@ interface CategoryData {
   judgesSubmitted: number;
   complete: boolean;
   rawMayDiffer: boolean;
-  rows: { candidate: ReportCandidate; score: number | null; rawTotal: number | null; rawPercentage: number | null; rank: number | null }[];
+  rows: { candidate: ReportCandidate; withdrawn: boolean; score: number | null; rawTotal: number | null; rawPercentage: number | null; rank: number | null }[];
 }
 
 export function CategoryReport({ event, params, set, version }: ViewProps) {
@@ -278,7 +279,7 @@ export function CategoryReport({ event, params, set, version }: ViewProps) {
         <thead><tr><th className="n">Rank</th><th className="n no-print">No.</th><th>Candidate</th><th className="n">Raw score</th><th className="n">Percentage</th>{showAll && <th className="n">Ranking score / 100</th>}</tr></thead>
         <tbody>{d.rows.map((r) => <tr key={r.candidate.id}>
           <td className="n">{r.rank ?? '-'}{r.rank !== null && d.rows.filter((row) => row.rank === r.rank).length > 1 ? ' (tie)' : ''}</td><td className="n no-print">{r.candidate.number}</td>
-          <td>{r.candidate.name}<span className="sub">{groupNames(r.candidate)}</span></td>
+          <td>{r.candidate.name}{r.withdrawn ? ' · Withdrawn' : ''}<span className="sub">{groupNames(r.candidate)}</span></td>
           <td className="n">{fmt(r.rawTotal)}</td><td className="n">{r.rawPercentage === null ? '-' : `${fmt(r.rawPercentage)}%`}</td>{showAll && <td className="n">{fmt(r.score)}</td>}
         </tr>)}</tbody>
       </table>
@@ -343,6 +344,7 @@ interface RoundData {
   judges: number;
   rows: {
     candidate: ReportCandidate;
+    withdrawn: boolean;
     categories: Record<number, number | null>;
     score: number | null;
     rank: number | null;
@@ -455,7 +457,7 @@ export function RoundReport({ event, params, set, version }: ViewProps) {
                     <div className="identity">
                       <CandidatePhoto src={r.candidate.thumbUrl} name={r.candidate.name} size={32} />
                       <span>
-                        <span className="name">{r.candidate.name}</span>
+                        <span className="name">{r.candidate.name}{r.withdrawn ? ' · Withdrawn' : ''}</span>
                         <span className="sub">{groupNames(r.candidate)}</span>
                         <span className="sub narrow-only">No. {r.candidate.number}</span>
                       </span>

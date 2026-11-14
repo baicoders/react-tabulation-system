@@ -52,6 +52,7 @@ interface PairTally {
   votesB: number;
   winnerId: number | null;
   tied: boolean;
+  voided: boolean;
 }
 
 interface FieldData {
@@ -130,8 +131,9 @@ function PairsPanel({
           <p className="muted" style={{ marginTop: 4 }}>
             {tab.pairs.length === 0
               ? `${plural(tab.entries, 'candidate')} make ${tab.entries / 2} pairs. Judges see them as soon as they are set.`
-              : `${plural(votesCast, 'vote')} cast of ${tab.pairs.length * judges}. A pair's winner has the most submitted votes.`}
+              : `${plural(votesCast, 'vote')} recorded. A pair's winner has the most submitted votes.`}
           </p>
+          {tab.pairs.some((p) => p.voided) && <p className="error">A candidate withdrew. Their pair is void; its votes remain on record. Choose the advancing field manually after closing this stage.</p>}
         </div>
         {tab.pairs.length > 0 && votesCast === 0 && (
           <button className="link-btn" disabled={busy} onClick={() => onSetPairs('RANDOM')}>
@@ -166,7 +168,7 @@ function PairsPanel({
                   </span>
                   <span className="tally-count">
                     <span>{p.castA}</span>
-                    {p.tied ? <span className="error">Tied</span> : <span />}
+                    {p.voided ? <span className="error">Void — withdrawal</span> : p.tied ? <span className="error">Tied</span> : <span />}
                     <span>{p.castB}</span>
                   </span>
                 </span>

@@ -42,6 +42,7 @@ interface Row {
   name: string;
   thumbUrl: string | null;
   photoUrl: string | null;
+  withdrawn: boolean;
   scores: Record<number, number>;
 }
 
@@ -88,7 +89,7 @@ const ScoreRow = memo(function ScoreRow({ row, criteria, edits, locked, onChange
           <span className="name">{row.name}<span className="judge-mobile-number">No. {row.number}</span></span>
         </div>
       </td>
-      {criteria.map((cr) => {
+      {row.withdrawn ? <td colSpan={criteria.length + 1}><span className="pill neg">Withdrawn</span></td> : <>{criteria.map((cr) => {
         const v = value(cr.id) ?? '';
         const invalid = v !== '' && (v < cr.min || v > cr.max);
         return (
@@ -108,7 +109,7 @@ const ScoreRow = memo(function ScoreRow({ row, criteria, edits, locked, onChange
           </td>
         );
       })}
-      <td className="n">{total === null ? <span className="muted">-</span> : total.toFixed(2)}</td>
+      <td className="n">{total === null ? <span className="muted">-</span> : total.toFixed(2)}</td></>}
     </tr>
   );
 });
@@ -121,12 +122,12 @@ const ScoreCard = memo(function ScoreCard({ row, criteria, edits, locked, onChan
     <article className="judge-score-card" aria-label={`${row.name}, candidate ${row.number}`}>
       <header className="judge-card-header">
         {row.photoUrl ? <button type="button" className="photo-button" onClick={() => onPhoto(row)} aria-label={`Enlarge photo of ${row.name}`}>
-          <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />
+          <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} interactive={false} />
         </button> : <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />}
         <div className="judge-card-identity"><span>Candidate {row.number}</span><h2>{row.name}</h2></div>
-        <div className="judge-card-total"><span>Total</span><strong>{total === null ? '—' : total.toFixed(2)}</strong></div>
+        {!row.withdrawn && <div className="judge-card-total"><span>Total</span><strong>{total === null ? '—' : total.toFixed(2)}</strong></div>}
       </header>
-      <div className="judge-card-criteria">
+      {row.withdrawn ? <span className="pill neg">Withdrawn</span> : <div className="judge-card-criteria">
         {criteria.map((cr) => {
           const v = value(cr.id) ?? '';
           const invalid = v !== '' && (v < cr.min || v > cr.max);
@@ -137,7 +138,7 @@ const ScoreCard = memo(function ScoreCard({ row, criteria, edits, locked, onChan
             </label>
           );
         })}
-      </div>
+      </div>}
     </article>
   );
 });
@@ -145,11 +146,12 @@ const ScoreCard = memo(function ScoreCard({ row, criteria, edits, locked, onChan
 export function ScoreSheetPage() {
   const { user, logout } = useAuth();
   const sheet = useResource<Sheet>('/judge/sheet');
+  const reloadRows = useRef<() => void>(() => {});
   // The tabulator opening or closing a round, toggling testing mode or letting this judge change scores
   // arrives as a live notice, so the sheet updates without the judge pressing anything.
   const refreshSheet = useDebouncedCallback(() => sheet.reload());
   useLiveUpdates(user?.eventId, (notice) => {
-    if (notice.type === 'round' || notice.type === 'event' || notice.type === 'judges') refreshSheet();
+    if (notice.type === 'round' || notice.type === 'event' || notice.type === 'judges') { refreshSheet(); reloadRows.current(); }
   });
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
@@ -187,6 +189,7 @@ export function ScoreSheetPage() {
   useEffect(() => setPage(1), [q, pageSize]);
 
   const rows = usePaginated<Row>(category ? `/judge/categories/${category.id}/candidates` : null, { page, pageSize, q });
+  reloadRows.current = rows.reload;
   const locked = category?.submitted ?? false;
   const testingMode = sheet.data?.event.testingMode ?? false;
   const hasInvalidEdits = Boolean(category && Object.values(edits).some((row) => Object.entries(row).some(([criterionId, value]) => {
@@ -272,6 +275,7 @@ export function ScoreSheetPage() {
       const changes: Change[] = [];
       const next: Edits = { ...edits };
       for (const row of rows.data.items) {
+        if (row.withdrawn) continue;
         next[row.id] = { ...next[row.id] };
         for (const cr of category.criteria) {
           const current = cr.id in next[row.id] ? next[row.id][cr.id] : row.scores[cr.id];

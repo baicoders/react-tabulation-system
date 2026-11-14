@@ -60,7 +60,7 @@ async function tabulateScoredRound(roundId: number) {
     },
   });
 
-  const entryIds = round.entries.map((e) => e.candidateId);
+  const entryIds = round.entries.filter((e) => !e.withdrawn).map((e) => e.candidateId);
   const criteria = round.categories.flatMap((c) => c.criteria);
   const testFilter = round.event.testingMode ? {} : { isTest: false };
 

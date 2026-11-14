@@ -1,0 +1,2 @@
+ALTER TABLE "Candidate" ADD COLUMN "withdrawn" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "RoundEntry" ADD COLUMN "withdrawn" BOOLEAN NOT NULL DEFAULT false;
