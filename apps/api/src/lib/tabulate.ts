@@ -30,7 +30,7 @@ export interface StandingRow {
   name: string;
   thumbUrl: string | null;
   score: number;
-  rank: number;
+  rank: number | null;
 }
 
 /** Share of a criterion inside its category, in percent: its weight, or an equal split when no weights are set. */
