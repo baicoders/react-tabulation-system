@@ -1,4 +1,5 @@
 import { assignRanks, averageScores, type CandidateScore, type JudgeTotal } from './index';
+import { assertCompatibleMeasurements, type Measurement } from './measurement';
 
 export interface CategoryCriterion {
   id: number;
@@ -65,8 +66,9 @@ export function categoryResults(input: {
 }
 
 /** Combine category averages, not judge totals; every weighted category must have a result. */
-export function combineCategoryAverages(candidateIds: number[], categories: { weight: number; scores: CandidateScore[] }[]): CandidateScore[] {
+export function combineCategoryAverages(candidateIds: number[], categories: { measurement: Measurement; weight: number; scores: CandidateScore[] }[]): CandidateScore[] {
   const weighted = categories.filter((c) => c.weight > 0).map((c) => ({ ...c, byCandidate: new Map(c.scores.map((s) => [s.candidateId, s.score])) }));
+  assertCompatibleMeasurements(weighted.map((category) => category.measurement));
   const totalWeight = weighted.reduce((sum, c) => sum + c.weight, 0);
   return candidateIds.flatMap((candidateId) =>
     totalWeight > 0 && weighted.every((c) => c.byCandidate.has(candidateId))
