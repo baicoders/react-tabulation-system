@@ -257,6 +257,7 @@ select.input { border-color: var(--field); }
 .login-card { width: min(380px, 100%); display: grid; gap: 16px; padding: 28px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sheet); }
 .login-card .brand { padding: 0; margin: 0 0 4px; }
 .login-card h1 { font-size: var(--fs-title); line-height: 28px; font-weight: 600; }
+.login-submit { height: 40px; }
 .segmented { display: flex; padding: 2px; border-radius: 8px; background: var(--raised); }
 .segmented button { flex: 1; height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
 .segmented button[aria-pressed='true'] { background: var(--surface); color: var(--text); font-weight: 500; }
@@ -306,6 +307,8 @@ th .sub { display: block; font-size: 11px; color: var(--faint); }
 .judge-sheet td input { width: 76px; height: 36px; padding: 0 12px; border: 1px solid var(--field); border-radius: var(--radius-control); background: var(--surface); text-align: right; font-variant-numeric: tabular-nums; }
 .judge-sheet td input:disabled { background: var(--raised); color: var(--text); }
 .judge-sheet td input[aria-invalid='true'] { border-color: var(--negative); }
+.judge-mobile-number, .judge-scroll-hint { display: none; }
+.judge-score-cards { display: none; }
 @media (max-width: 860px) { .judge-sheet { margin: 0; } }
 
 /* The round that is ready to open next: pale teal, so the next step stands out from the closed rounds. */
@@ -338,6 +341,30 @@ th .sub { display: block; font-size: 11px; color: var(--faint); }
   .pair { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .tally-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .tally-row .bar { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* Phone experiment: a candidate's criteria stay together without horizontal scrolling.
+   Tablets retain the denser score grid. */
+@media screen and (max-width: 599px) {
+  .judge-sheet .judge-table-wrap, .judge-sheet .judge-scroll-hint { display: none; }
+  .judge-score-cards { display: grid; gap: 14px; margin-top: 16px; }
+  .judge-score-cards.loading { opacity: .55; }
+  .judge-score-card { min-width: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; }
+  .judge-card-header { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--raised); }
+  .judge-card-identity { min-width: 0; flex: 1; }
+  .judge-card-identity > span, .judge-card-total > span { display: block; color: var(--muted); font-size: 13px; line-height: 18px; }
+  .judge-card-identity h2 { font-size: 16px; line-height: 21px; font-weight: 600; overflow-wrap: anywhere; }
+  .judge-card-total { flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+  .judge-card-total strong { display: block; font-size: 17px; line-height: 22px; }
+  .judge-card-criteria { padding: 0 14px; }
+  .judge-card-criterion { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
+  .judge-card-criterion + .judge-card-criterion { border-top: 1px solid var(--rule); }
+  .judge-card-label { display: grid; gap: 2px; min-width: 0; }
+  .judge-card-label strong { font-size: 15px; line-height: 20px; font-weight: 500; overflow-wrap: anywhere; }
+  .judge-card-label > span { color: var(--muted); font-size: 13px; line-height: 18px; }
+  .judge-card-criterion input { flex: none; width: 82px; height: 48px; padding: 0 10px; border: 1px solid var(--field); border-radius: var(--radius-control); background: var(--surface); text-align: right; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .judge-card-criterion input:disabled { background: var(--raised); color: var(--text); }
+  .judge-card-criterion input[aria-invalid='true'] { border-color: var(--negative); }
 }
 
 /* ---------- reports ---------- */
@@ -406,3 +433,44 @@ table.assign tfoot td { border-top: 1px solid var(--border); font-size: var(--fs
 
 /* Headings balance their line breaks instead of leaving one word alone on the last line. */
 h1, h2, .report-title { text-wrap: balance; }
+
+/* The judge is likely to work from a phone; keep this separate from admin density. */
+@media screen and (max-width: 860px) {
+  .login-card { min-width: 0; padding: 24px; }
+  .login-card .input { min-height: 44px; font-size: 16px; }
+  .login-card .segmented button, .login-card .login-submit { min-height: 44px; font-size: 16px; }
+  .login-card .field, .login-card .live-event { font-size: 16px; }
+  .judge-app { display: block; font-size: 16px; line-height: 1.5; }
+  .judge-bar { min-height: 60px; gap: 8px; flex-wrap: wrap; padding: 8px 16px; }
+  .judge-bar .brand { flex: 1 1 100px; width: 0; height: auto; gap: 8px; }
+  .judge-bar .spacer { display: none; }
+  .judge-bar .btn { min-height: 44px; }
+  .judge-sheet .canvas { min-width: 0; }
+  .judge-sheet .title-row { gap: 12px; }
+  .judge-sheet .title-row > div { min-width: 0; }
+  .judge-sheet .title-row .actions { flex: 1 1 100%; flex-wrap: wrap; }
+  .judge-sheet .btn, .judge-sheet .pagination button, .judge-sheet .pagination select { min-height: 44px; }
+  .judge-sheet .title-row .actions .btn { max-width: 100%; height: auto; white-space: normal; text-align: center; }
+  .judge-sheet .meta, .judge-sheet .pick-text .sub, .judge-sheet .pick-mark { font-size: 14px; }
+  .judge-sheet .toolbar .input { min-width: 0; width: 100%; height: 44px; font-size: 16px; }
+  .judge-sheet .tabs { gap: 0 20px; }
+  .judge-sheet .tabs button { min-height: 44px; white-space: normal; text-align: left; }
+  .judge-sheet .pagination { gap: 8px; }
+  .judge-sheet .pagination .range { flex-basis: 100%; }
+  .judge-sheet .pagination button { min-width: 44px; }
+  .judge-scroll-hint { display: block; margin: 12px 0 4px; color: var(--muted); font-size: 14px; }
+  .judge-table-wrap { max-width: 100%; overscroll-behavior-inline: contain; }
+  .judge-score-table { width: max-content; min-width: 100%; }
+  .judge-score-table .judge-number { display: none; }
+  .judge-score-table .judge-candidate { position: sticky; left: 0; z-index: 1; width: 145px; min-width: 145px; max-width: 145px; padding: 12px 8px; background: var(--surface); box-shadow: 1px 0 0 var(--border); }
+  .judge-score-table th.judge-candidate { z-index: 2; }
+  .judge-score-table .identity { gap: 8px; align-items: flex-start; }
+  .judge-score-table .identity .name { min-width: 0; overflow-wrap: anywhere; }
+  .judge-mobile-number { display: block; color: var(--muted); font-size: 13px; font-weight: 400; }
+  .judge-score-table th, .judge-score-table td { padding-left: 10px; padding-right: 10px; }
+  .judge-score-table th { font-size: 14px; }
+  .judge-score-table th .sub { font-size: 13px; }
+  .judge-sheet td input { width: 80px; height: 44px; font-size: 16px; }
+  .judge-sheet .pick { min-width: 0; min-height: 72px; }
+  .judge-sheet .pick-text { overflow-wrap: anywhere; }
+}
