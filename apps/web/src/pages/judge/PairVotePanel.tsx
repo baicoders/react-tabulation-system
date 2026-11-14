@@ -107,13 +107,15 @@ export function PairVotePanel({ round, onChange }: { round: PairRound; onChange:
 
 function PickButton({ candidate, picked, other, disabled, onPick }: { candidate: PairCandidate; picked: boolean; other: string; disabled: boolean; onPick: () => void }) {
   return (
-    <button className="pick" aria-pressed={picked} disabled={disabled} onClick={onPick} aria-label={`${candidate.name} wins over ${other}`}>
+    <div className="pair-choice">
       <CandidatePhoto src={candidate.thumbUrl} name={candidate.name} size={48} />
+    <button className="pick" aria-pressed={picked} disabled={disabled} onClick={onPick} aria-label={`${candidate.name} wins over ${other}`}>
       <span className="pick-text">
         <span className="name">{candidate.name}</span>
         <span className="sub">No. {candidate.number}</span>
       </span>
       <span className="pick-mark">{picked ? 'Winner' : 'Pick'}</span>
     </button>
+    </div>
   );
 }

@@ -16,7 +16,7 @@ test('category report does not crash while rounds and results are loading', asyn
     if (path === '/api/events/4') return json(event);
     if (path === '/api/events/4/rounds') return json([round]);
     if (path === '/api/events/4/judges') return json([{ id: 1, name: 'Judge One' }]);
-    if (path === '/api/categories/10/report') return json({ category, round, groupValueId: null, judges: 1, judgesSubmitted: 1, complete: true, rows: [{ candidate: { id: 1, number: 1, name: 'Candidate One', groups: [] }, rank: 1, score: 80 }] });
+    if (path === '/api/categories/10/report') return json({ category, round, groupValueId: null, judges: 1, totalJudges: 1, judgeNames: ['Judge One'], judgesSubmitted: 1, complete: true, rows: [{ candidate: { id: 1, number: 1, name: 'Candidate One', groups: [] }, rank: 1, score: 80, rawTotal: 8, rawPercentage: 80 }] });
     return route.abort();
   });
   await page.goto('/admin/events/4/reports?view=category');

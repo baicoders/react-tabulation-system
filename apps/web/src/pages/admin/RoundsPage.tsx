@@ -264,7 +264,8 @@ function CategoryBlock({ category, heading, showCutWeight, onChange }: { categor
   }
 
   return (
-    <div style={{ marginBottom: 16 }}>
+    <section className="category-setup">
+      <h3 className="section-title">{category.name}</h3>
       {showCutWeight && <form className="toolbar" onSubmit={async (e) => {
         e.preventDefault();
         try {
@@ -283,7 +284,7 @@ function CategoryBlock({ category, heading, showCutWeight, onChange }: { categor
         <table>
           <thead>
             <tr>
-              <th>{heading}</th>
+              <th>{heading === category.name ? 'Criterion' : heading}</th>
               <th className="n">Points</th>
               <th className="n">Weight</th>
               <th className="n">
@@ -315,7 +316,7 @@ function CategoryBlock({ category, heading, showCutWeight, onChange }: { categor
         </p>
       )}
       <AddCriterionForm categoryId={category.id} onChange={onChange} />
-    </div>
+    </section>
   );
 }
 
