@@ -408,7 +408,7 @@ export function EventOverviewPage() {
                     <span className="rung-count">
                       {field}
                       {!actual && <span className="visually-hidden"> planned</span>}
-                      <span className="sub">{round.advanceCount ? `Top ${round.advanceCount} go on` : 'Final'}</span>
+                      <span className="sub">{round.advanceCount ? `Top ${round.advanceCount} go on` : 'No automatic cut'}</span>
                     </span>
                   </li>
                 ))}
@@ -438,7 +438,7 @@ export function EventOverviewPage() {
                     {t?.complete
                       ? open.round.kind === 'PAIR_VOTE'
                         ? t.manualAdvancement ? 'Choose the advancing candidates after closing.' : `Sends the ${cut} pair winners on.`
-                        : `Ranks the field and sends the Top ${cut ?? open.field} on.`
+                        : cut === null ? 'Ranks the field; choose the next field after closing.' : `Ranks the field and sends the Top ${cut} on.`
                       : open.round.kind === 'PAIR_VOTE' && t && t.pairs.length === 0
                         ? 'Set the pairs first.'
                         : t && t.pairTies.length > 0
