@@ -122,12 +122,12 @@ const ScoreCard = memo(function ScoreCard({ row, criteria, edits, locked, onChan
     <article className="judge-score-card" aria-label={`${row.name}, candidate ${row.number}`}>
       <header className="judge-card-header">
         {row.photoUrl ? <button type="button" className="photo-button" onClick={() => onPhoto(row)} aria-label={`Enlarge photo of ${row.name}`}>
-          <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />
+          <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} interactive={false} />
         </button> : <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />}
         <div className="judge-card-identity"><span>Candidate {row.number}</span><h2>{row.name}</h2></div>
-        <div className="judge-card-total"><span>Total</span><strong>{total === null ? '—' : total.toFixed(2)}</strong></div>
+        {!row.withdrawn && <div className="judge-card-total"><span>Total</span><strong>{total === null ? '—' : total.toFixed(2)}</strong></div>}
       </header>
-      <div className="judge-card-criteria">
+      {row.withdrawn ? <span className="pill neg">Withdrawn</span> : <div className="judge-card-criteria">
         {criteria.map((cr) => {
           const v = value(cr.id) ?? '';
           const invalid = v !== '' && (v < cr.min || v > cr.max);
@@ -138,7 +138,7 @@ const ScoreCard = memo(function ScoreCard({ row, criteria, edits, locked, onChan
             </label>
           );
         })}
-      </div>
+      </div>}
     </article>
   );
 });

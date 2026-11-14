@@ -121,7 +121,7 @@ reportsRouter.get('/events/:eventId/reports/combined-categories', admin, async (
   const maximum = ordered.reduce((sum, c, i) => sum.plus(c.criteria.reduce((s, cr) => s.plus(cr.maxPoints), new Prisma.Decimal(0)).times(c.judges.length).times(weightStrings[i])), new Prisma.Decimal(0));
   const rows = [...candidates.values()].filter((c) => !query.groupValueId || c.groupValues.some((g) => g.groupValue.id === query.groupValueId)).map((candidate) => {
     const values = ordered.map((c) => {
-      if (!c.round.entries.some((entry) => entry.candidateId === candidate.id)) return null;
+      if (!c.round.entries.some((entry) => entry.candidateId === candidate.id && !entry.withdrawn)) return null;
       const points = c.judges.flatMap((j) => c.criteria.map((cr) => cells.get(`${candidate.id}:${j.judgeId}:${cr.id}`)));
       return points.some((p) => p === undefined) ? null : points.reduce<Prisma.Decimal>((sum, p) => sum.plus(p!), new Prisma.Decimal(0));
     });

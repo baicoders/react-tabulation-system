@@ -41,6 +41,16 @@ test('withdrawal preserves closed stages and excludes the candidate from an open
     assert.equal(judgeData.items.find((row: any) => row.id === a.id).withdrawn, true);
     assert.equal(judgeData.items.find((row: any) => row.id === b.id).withdrawn, false);
     assert.equal(judgeData.total, 2);
+    const otherJudge = await prisma.judge.create({ data: { eventId: event.id, name: 'Other judge', passwordHash: 'unused' } });
+    await prisma.judgeCategory.create({ data: { judgeId: otherJudge.id, categoryId: category.id } });
+    const otherToken = signToken({ id: otherJudge.id, role: 'judge', name: otherJudge.name, eventId: event.id });
+    const rejectedScore = await fetch(`http://127.0.0.1:${address.port}/api/judge/scores`, {
+      method: 'PUT', headers: { Authorization: `Bearer ${otherToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoryId: category.id, scores: [{ candidateId: a.id, criterionId: criterion.id, points: 7 }] }),
+    });
+    assert.equal(rejectedScore.status, 400);
+    assert.equal(await prisma.score.count({ where: { judgeId: otherJudge.id, candidateId: a.id } }), 0);
+    await prisma.judge.delete({ where: { id: otherJudge.id } });
     const tab = await request(`/rounds/${current.id}/tabulation`);
     assert.equal(tab.data.complete, true);
     assert.deepEqual(tab.data.standings.map((r: any) => r.candidateId), [b.id]);
@@ -49,6 +59,11 @@ test('withdrawal preserves closed stages and excludes the candidate from an open
     assert.equal(report.data.rows.find((r: any) => r.candidate.id === a.id).rank, null);
     assert.equal((await request(`/candidates/${a.id}/withdrawal`, { withdrawn: false })).status, 409);
     await prisma.round.update({ where: { id: current.id }, data: { status: 'CLOSED' } });
+    const combined = await request(`/events/${event.id}/reports/combined-categories?categoryIds=${category.id}`);
+    assert.equal(combined.status, 200);
+    assert.equal(combined.data.rows.find((r: any) => r.candidate.id === a.id).rank, null);
+    assert.equal(combined.data.rows.find((r: any) => r.candidate.id === a.id).total, null);
+    assert.equal(combined.data.rows.find((r: any) => r.candidate.id === b.id).rank, 1);
     const c = await prisma.candidate.create({ data: { eventId: event.id, number: 3, name: 'Candidate 3' } });
     const pairRound = await prisma.round.create({ data: { eventId: event.id, name: 'Pairs', order: 3, kind: 'PAIR_VOTE', status: 'OPEN', advanceCount: 1 } });
     await prisma.roundEntry.createMany({ data: [b, c].map((candidate) => ({ roundId: pairRound.id, candidateId: candidate.id })) });
