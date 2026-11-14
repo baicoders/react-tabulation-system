@@ -244,7 +244,7 @@ export function CategoryReport({ event, params, set, version }: ViewProps) {
   const selected = categories.find((c) => String(c.id) === params.get('category')) ?? categories[0] ?? null;
   const group = params.get('group');
   const data = useResource<CategoryData>(selected ? live(`/categories/${selected.id}/report${group ? `?groupValueId=${group}` : ''}`, version) : null);
-  const d = data.data?.category.id === selected?.id && String(data.data.groupValueId ?? '') === (group ?? '') ? data.data : null;
+  const d = data.data && selected && data.data.category.id === selected.id && String(data.data.groupValueId ?? '') === (group ?? '') ? data.data : null;
   const scope = groupLabel(event.groups, group);
   const title = `${selected?.name ?? 'Category'} ranking${scope ? `, ${scope}` : ''}`;
 
