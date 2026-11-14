@@ -28,7 +28,7 @@ export function RoundsPage() {
               ? `${plural(list.length, 'round')}: ${plural(event._count.candidates, 'candidate')}, then ${
                   list.filter((r) => r.advanceCount).map((r) => `Top ${r.advanceCount}`).join(', ') || 'no cuts'
                 }.`
-              : 'Each round has its own criteria, scoring method and cut.'}
+              : 'A round is a stage. Add the categories judged in that stage, then their criteria.'}
           </p>
         </div>
         <div className="actions">
@@ -37,6 +37,11 @@ export function RoundsPage() {
           </button>
         </div>
       </div>
+
+      <p className="muted" style={{ marginBottom: 16 }}>
+        Put categories judged in the same stage in one round—for example Production Number and National Costume.
+        Judges can score their assigned categories as soon as the round opens.
+      </p>
 
       {adding && (
         <RoundSettingsForm
@@ -56,7 +61,7 @@ export function RoundsPage() {
           Couldn’t load rounds. <button className="link-btn" onClick={rounds.reload}>Retry</button>
         </p>
       )}
-      {rounds.data && list.length === 0 && !adding && <div className="empty">No rounds yet. Add the first round, for example the production number.</div>}
+      {rounds.data && list.length === 0 && !adding && <div className="empty">No rounds yet. Add the first stage, then add its categories and criteria.</div>}
 
       <div className="stack">
         {list.map((r) => (
@@ -126,7 +131,7 @@ function RoundSettingsForm({
       <div className="form-row">
         <label className="field">
           <span>Round name</span>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Production Number" required />
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Opening stage" required />
         </label>
         <label className="field">
           <span>Judging</span>
@@ -245,8 +250,11 @@ function RoundPanel({ round, onChange }: { round: Round; onChange: () => void })
         <p className="muted">Judges pick one winner in each pair. Pairs are set when the round opens; this round has no criteria.</p>
       ) : (
         <>
+          {round.categories.length > 1 && <p className="muted" style={{ marginBottom: 12 }}>
+            Categories are ranked separately. For the cut, leave every category weight blank for equal shares, or set every weight so they add up to 100%.
+          </p>}
           {round.categories.map((c) => (
-            <CategoryBlock key={c.id} category={c} heading={c.name === round.name ? 'Criterion' : c.name} onChange={onChange} />
+            <CategoryBlock key={c.id} category={c} heading={c.name === round.name ? 'Criterion' : c.name} showCutWeight={round.categories.length > 1} onChange={onChange} />
           ))}
           {round.categories.length === 0 && <div className="empty">No criteria yet. Add a category, then its criteria.</div>}
           <AddCategoryForm roundId={round.id} onChange={onChange} />
@@ -256,10 +264,12 @@ function RoundPanel({ round, onChange }: { round: Round; onChange: () => void })
   );
 }
 
-function CategoryBlock({ category, heading, onChange }: { category: Category; heading: string; onChange: () => void }) {
+function CategoryBlock({ category, heading, showCutWeight, onChange }: { category: Category; heading: string; showCutWeight: boolean; onChange: () => void }) {
   const weights = category.criteria.map((c) => c.weight);
   const weighted = weights.some((w) => w !== null);
   const total = weights.reduce<number>((sum, w) => sum + (w ?? 0), 0);
+  const [cutWeight, setCutWeight] = useState(category.weight === null ? '' : String(category.weight));
+  const [weightError, setWeightError] = useState<string | null>(null);
 
   async function removeCriterion(id: number) {
     await api(`/criteria/${id}`, { method: 'DELETE' });
@@ -268,6 +278,20 @@ function CategoryBlock({ category, heading, onChange }: { category: Category; he
 
   return (
     <div style={{ marginBottom: 16 }}>
+      {showCutWeight && <form className="toolbar" onSubmit={async (e) => {
+        e.preventDefault();
+        try {
+          await api(`/categories/${category.id}`, { method: 'PATCH', body: JSON.stringify({ weight: cutWeight === '' ? null : Number(cutWeight) }) });
+          setWeightError(null);
+          onChange();
+        } catch (err) {
+          setWeightError(err instanceof Error ? err.message : 'Could not save cut weight');
+        }
+      }}>
+        <label>{category.name} cut weight (%) <input className="input num" style={{ width: 88 }} type="number" min={0} max={100} step="any" value={cutWeight} onChange={(e) => setCutWeight(e.target.value)} aria-label={`${category.name} cut weight percent`} placeholder="Equal" /></label>
+        <button className="btn" type="submit">Save weight</button>
+        {weightError && <span className="error">{weightError}</span>}
+      </form>}
       <div className="table-wrap">
         <table>
           <thead>

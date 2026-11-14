@@ -23,6 +23,7 @@ interface Tabulation {
   round: { id: number; name: string; status: string; kind: string; advanceCount: number | null };
   entries: number;
   complete: boolean;
+  configurationErrors?: string[];
   judges: { id: number; name: string; required: number; scored: number; done: boolean }[];
   standings: { candidateId: number; number: number; name: string; thumbUrl: string | null; score: number; rank: number }[];
   direction: 'asc' | 'desc';
@@ -401,7 +402,7 @@ export function EventOverviewPage() {
                         ? 'Set the pairs first.'
                         : t && t.pairTies.length > 0
                           ? 'A pair is tied on votes; a judge needs to change a vote.'
-                          : 'Available once every judge has submitted.'}
+                          : t?.configurationErrors?.length ? 'Fix the setup issues below.' : 'Available once every judge has submitted.'}
                   </span>
                 </>
               )}
@@ -416,6 +417,12 @@ export function EventOverviewPage() {
                 </button>
               )}
             </div>
+            {open && t?.configurationErrors?.length ? <div className="notice" role="status" style={{ marginTop: 8 }}>
+              <p>Before closing this round:</p>
+              <ul>{t.configurationErrors.map((error) => <li key={error}>{error}</li>)}</ul>
+              <Link className="link-btn" to="rounds">Review rounds and criteria</Link>{' · '}
+              <Link className="link-btn" to="judges">Review judge assignments</Link>
+            </div> : null}
             {message && (
               <p className={failed ? 'error' : 'muted'} style={{ marginTop: 8 }} role="status">
                 {message}

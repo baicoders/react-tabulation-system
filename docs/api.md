@@ -154,6 +154,7 @@ Read only. Built from submitted scores and from the results saved when rounds cl
 | --- | --- | --- |
 | GET | `/events/:eventId/reports/overall` | `?groupValueId`. Each candidate's place: furthest round reached, then rank there (while that round is open, rank in the last closed round). `title` (Champion, 1st to 3rd Runner-up) once the final round is closed |
 | GET | `/rounds/:id/report` | `?groupValueId`. Per candidate: category scores (judges' average, out of 100), score, rank, whether they went on; for pair rounds the opponent and votes |
+| GET | `/categories/:id/report` | `?groupValueId`. Independent category averages and ranks from complete submissions by assigned judges, plus submission counts and completion state. Ranks use unrounded values. |
 | GET | `/candidates/:id/report` | Every round the candidate entered, with each judge's points per criterion, or their vote in a pair round |
 | GET | `/rounds/:id/judges/:judgeId/report` | Every score one judge gave in a round, with their total out of 100 and when it was saved |
 
