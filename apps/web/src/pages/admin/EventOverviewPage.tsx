@@ -510,7 +510,7 @@ export function EventOverviewPage() {
                   <p className="muted" style={{ marginTop: 4 }}>
                     {t.standings.length === 0
                       ? 'Standings appear as judges submit.'
-                      : `From ${plural(doneJudges, 'submitted judge')} so far. ${t.direction === 'asc' ? 'Rank-sum: lower is better.' : 'Average out of 100.'}`}
+                      : `From ${plural(doneJudges, 'submitted judge')} so far. Average out of 100.`}
                   </p>
                 </div>
                 {t.standings.length > shown.length && <span className="meta">Top {shown.length} of {t.standings.length}</span>}

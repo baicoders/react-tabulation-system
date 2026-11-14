@@ -198,7 +198,7 @@ judgeRouter.get('/judge/categories/:categoryId/candidates', async (req, res) => 
         id: c.id,
         number: c.number,
         name: c.name,
-        thumbUrl: pictureUrls(c.picturePath).thumbUrl,
+        ...pictureUrls(c.picturePath),
         scores: Object.fromEntries(c.scores.map((s) => [s.criterionId, Number(s.points)])),
       })),
       total,

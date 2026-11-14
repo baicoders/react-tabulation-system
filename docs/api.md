@@ -83,7 +83,7 @@ List response:
 | POST | `/groups/:id/values` | `{ name }` |
 | DELETE | `/group-values/:id` | |
 | GET | `/events/:eventId/rounds` | Rounds in order, with categories and criteria |
-| POST | `/events/:eventId/rounds` | `{ name, kind?, scoreMethod?, advanceCount?, carryOverWeight?, dropExtremes?, tieBreak? }`; order is set to the end |
+| POST | `/events/:eventId/rounds` | `{ name, kind?, advanceCount?, carryOverWeight?, dropExtremes?, tieBreak? }`; order is set to the end |
 | PATCH | `/rounds/:id` | Any field from POST |
 | DELETE | `/rounds/:id` | |
 | POST | `/rounds/:id/categories` | `{ name, weight? }` |
@@ -106,7 +106,7 @@ All scoped to the judge's own event and to categories assigned to them, in round
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/judge/sheet` | `{ event, judge, rounds: [{ id, name, entries, categories: [{ id, name, criteria, scored, required, submitted }] }] }` |
-| GET | `/judge/categories/:categoryId/candidates` | Candidates in the round, paginated (`page`, `pageSize` up to 100, `q`), each with this judge's `scores` by criterion id, plus `locked` |
+| GET | `/judge/categories/:categoryId/candidates` | Candidates in the round, paginated (`page`, `pageSize` up to 100, `q`), each with `thumbUrl`, larger `photoUrl`, and this judge's `scores` by criterion id, plus `locked` |
 | PUT | `/judge/scores` | `{ categoryId, scores: [{ candidateId, criterionId, points }] }` saves drafts; `points: null` clears one. Values outside a criterion's range are refused. `409` after the category is submitted |
 | POST | `/judge/categories/:categoryId/submit` | Locks the category; `409` with the number still missing if any score is empty |
 

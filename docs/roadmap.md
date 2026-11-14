@@ -12,7 +12,7 @@
 - [x] Admin and judge login with JWT
 - [x] Events CRUD
 - [x] Candidates CRUD with server-side pagination, search and picture upload (WebP thumbnails)
-- [x] Scoring engine: average, rank-sum, carry-over, drop extremes, ranks, Top N with tie detection
+- [x] Scoring engine: averages, carry-over, drop extremes, ranks, Top N with tie detection
 - [x] Judge score sheet prototype with pagination, memoized rows and `Shift + J` / `Shift + P`
 
 ## Done (admin screens)

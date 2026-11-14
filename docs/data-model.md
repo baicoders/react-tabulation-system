@@ -10,7 +10,7 @@ The full schema is in [`apps/api/prisma/schema.prisma`](../apps/api/prisma/schem
 | `GroupValue` | One option of a group | `name`, e.g. "Female", "House Red", "SHS" |
 | `Candidate` | A contestant | `number` (unique per event), `name`, `picturePath` |
 | `CandidateGroupValue` | Links a candidate to its group values | `candidateId`, `groupValueId` |
-| `Round` | A stage of the event | `order`, `kind` (SCORED, PAIR_VOTE), `scoreMethod`, `advanceCount`, `carryOverWeight`, `dropExtremes`, `tieBreak`, `status` |
+| `Round` | A stage of the event | `order`, `kind` (SCORED, PAIR_VOTE), `advanceCount`, `carryOverWeight`, `dropExtremes`, `tieBreak`, `status` |
 | `RoundEntry` | Who competes in a round and whether they advanced | `roundId`, `candidateId`, `advanced` |
 | `Category` | A scored segment inside a round | `name`, `weight` (percent of round) |
 | `Criterion` | A scored item inside a category | `minPoints`, `maxPoints`, `weight` (percent of category) |

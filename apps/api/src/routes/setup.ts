@@ -58,12 +58,11 @@ setupRouter.delete('/group-values/:id', async (req, res) => {
 const roundBody = z.object({
   name,
   kind: z.enum(['SCORED', 'PAIR_VOTE']).default('SCORED'),
-  scoreMethod: z.enum(['AVERAGE', 'RANK_SUM']).default('AVERAGE'),
   advanceCount: z.number().int().positive().nullable().default(null),
   carryOverWeight: z.number().min(0).max(1).nullable().default(null),
   dropExtremes: z.boolean().default(false),
   tieBreak: z.enum(['SHARED_RANK', 'CATEGORY_SCORE', 'FIRST_PLACE_COUNT', 'ADMIN_DECIDES']).default('SHARED_RANK'),
-});
+}).strict();
 
 setupRouter.get('/events/:eventId/rounds', async (req, res) => {
   const rounds = await prisma.round.findMany({
@@ -86,7 +85,8 @@ setupRouter.post('/events/:eventId/rounds', async (req, res) => {
 });
 
 setupRouter.patch('/rounds/:id', async (req, res) => {
-  const data = roundBody.partial().parse(req.body);
+  const parsed = roundBody.partial().parse(req.body);
+  const data = Object.fromEntries(Object.entries(parsed).filter(([key]) => Object.hasOwn(req.body, key))) as typeof parsed;
   res.json(await prisma.round.update({ where: { id: id.parse(req.params.id) }, data }));
 });
 

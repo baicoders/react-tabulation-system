@@ -7,8 +7,8 @@ Where the two differ, neither should be mistaken for the other.
 **Foundation in progress:** scored categories have independent average rankings, and scored round
 cuts combine those category averages with equal or explicit weights. Pair-vote rounds show outcomes
 without ranking across pairs, and matching cuts advance pair winners; manual field selection handles
-other cuts. Pair voting is still owned by rounds rather than categories. Rank-sum settings still
-exist; the reconciliation is not complete. PR #2's round-based basis is not part of this branch.
+other cuts. Pair voting is still owned by rounds rather than categories. Rank-sum has been removed;
+the reconciliation is not complete. PR #2's round-based basis is not part of this branch.
 The HARA-specific seed script exists on the rehearsal branch; reconcile it when bringing the
 rehearsal kit into the epic.
 
@@ -51,8 +51,8 @@ target model. The decision to merge or close either PR remains with the project 
   units — no conversion rule exists.” There is no planned conversion feature. If a debate and a
   scored segment must both inform a cut, grade the debate as a scored criterion (as HARA 2026 did)
   or have the organizers decide the cut and the tabulator enter the advancing field by hand.
-- Average scores are the normal method. Remove rank-sum as part of the epic when convenient; an
-  environment flag is no longer requested. Do not add rank sums to average scores in the meantime.
+- Average scores are the scoring method. Rank-sum and its configuration have been removed; an
+  environment flag is not needed.
 - Keep the flexible groups model and the judge's tabular score sheet. Preserve useful context when
   switching categories, and make candidate photos expandable from their thumbnails.
 - Give admins category-by-judge progress and contextual setup guidance. Highlight the top three
@@ -72,8 +72,7 @@ schema or behavior they rely on.
    assuming their implementation must be retained. No production scoring behavior changes.
 2. **Category results and cuts:** introduce independent category results, category-specific judging
    types and rules, and category-based cuts. Replace round-based basis configuration; address manual
-   advancement and pair votes before claiming full HARA coverage. Remove rank-sum when convenient;
-   it need not block foundational work. Update seed data, migrations, API contracts and tests with
+   advancement and pair votes before claiming full HARA coverage. Update seed data, migrations, API contracts and tests with
    the model.
 3. **Admin setup and live operation:** explain the round/category/criterion hierarchy, provide
    readiness guidance and per-category judge progress, and make corrections and close blockers clear.
