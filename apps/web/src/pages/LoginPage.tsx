@@ -65,7 +65,7 @@ export function LoginPage() {
           <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
         </label>
         {error && <p className="error">{error}</p>}
-        <button type="submit" className="btn primary" style={{ height: 40 }} disabled={busy}>
+        <button type="submit" className="btn primary login-submit" disabled={busy}>
           {busy ? 'Logging in…' : 'Log in'}
         </button>
       </form>

@@ -79,13 +79,13 @@ const ScoreRow = memo(function ScoreRow({ row, criteria, edits, locked, onChange
   const total = categoryTotal(criteria, value);
   return (
     <tr>
-      <td className="n">{row.number}</td>
-      <td>
+      <td className="n judge-number">{row.number}</td>
+      <td className="judge-candidate">
         <div className="identity">
           {row.photoUrl ? <button type="button" className="photo-button" onClick={() => onPhoto(row)} aria-label={`Enlarge photo of ${row.name}`}>
             <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />
           </button> : <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />}
-          <span className="name">{row.name}</span>
+          <span className="name">{row.name}<span className="judge-mobile-number">No. {row.number}</span></span>
         </div>
       </td>
       {criteria.map((cr) => {
@@ -110,6 +110,35 @@ const ScoreRow = memo(function ScoreRow({ row, criteria, edits, locked, onChange
       })}
       <td className="n">{total === null ? <span className="muted">-</span> : total.toFixed(2)}</td>
     </tr>
+  );
+});
+
+// On narrow phones, show one candidate at a time in reading order instead of a wide grid.
+const ScoreCard = memo(function ScoreCard({ row, criteria, edits, locked, onChange, onPhoto }: RowProps) {
+  const value = (cid: number): Points | undefined => (edits && cid in edits ? edits[cid] : row.scores[cid]);
+  const total = categoryTotal(criteria, value);
+  return (
+    <article className="judge-score-card" aria-label={`${row.name}, candidate ${row.number}`}>
+      <header className="judge-card-header">
+        {row.photoUrl ? <button type="button" className="photo-button" onClick={() => onPhoto(row)} aria-label={`Enlarge photo of ${row.name}`}>
+          <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />
+        </button> : <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />}
+        <div className="judge-card-identity"><span>Candidate {row.number}</span><h2>{row.name}</h2></div>
+        <div className="judge-card-total"><span>Total</span><strong>{total === null ? '—' : total.toFixed(2)}</strong></div>
+      </header>
+      <div className="judge-card-criteria">
+        {criteria.map((cr) => {
+          const v = value(cr.id) ?? '';
+          const invalid = v !== '' && (v < cr.min || v > cr.max);
+          return (
+            <label className="judge-card-criterion" key={cr.id}>
+              <span className="judge-card-label"><strong>{cr.name}</strong><span>{cr.min}–{cr.max} points{cr.weight !== null && ` · ${cr.weight}%`}</span></span>
+              <input type="number" inputMode="decimal" step="any" min={cr.min} max={cr.max} value={v} disabled={locked} aria-invalid={invalid} aria-label={`${cr.name} for ${row.name}`} onChange={(e) => onChange(row.id, cr.id, e.target.value === '' ? '' : Number(e.target.value))} />
+            </label>
+          );
+        })}
+      </div>
+    </article>
   );
 });
 
@@ -401,12 +430,13 @@ export function ScoreSheetPage() {
               {submitError && <p className="error">{submitError}</p>}
               {!locked && missing > 0 && <p className="meta" style={{ marginBottom: 8 }}>You can submit once all {category.required} scores are in: {missing} to go.</p>}
 
-              <div className="table-wrap">
-                <table aria-busy={rows.loading}>
+              <p className="judge-scroll-hint">Scroll the score table sideways to see all criteria and totals.</p>
+              <div className="table-wrap judge-table-wrap" role="region" aria-label="Score table, scroll horizontally to see all criteria" tabIndex={0}>
+                <table className="judge-score-table" aria-busy={rows.loading}>
                   <thead>
                     <tr>
-                      <th className="n" style={{ width: 56 }}>No.</th>
-                      <th>Candidate</th>
+                      <th className="n judge-number" style={{ width: 56 }}>No.</th>
+                      <th className="judge-candidate">Candidate</th>
                       {category.criteria.map((cr) => (
                         <th key={cr.id} className="n">
                           {cr.name}
@@ -424,6 +454,11 @@ export function ScoreSheetPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className={rows.loading ? 'judge-score-cards loading' : 'judge-score-cards'} aria-busy={rows.loading}>
+                {rows.data?.items.map((row) => (
+                  <ScoreCard key={row.id} row={row} criteria={category.criteria} edits={edits[row.id]} locked={locked || switching} onChange={onChange} onPhoto={openPhoto} />
+                ))}
               </div>
               {rows.data && rows.data.items.length === 0 && <div className="empty">No candidate matches this search.</div>}
               {rows.data && rows.data.total > 0 && (
