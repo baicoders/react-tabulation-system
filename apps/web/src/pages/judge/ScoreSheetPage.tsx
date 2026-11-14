@@ -83,7 +83,7 @@ const ScoreRow = memo(function ScoreRow({ row, criteria, edits, locked, onChange
       <td className="judge-candidate">
         <div className="identity">
           {row.photoUrl ? <button type="button" className="photo-button" onClick={() => onPhoto(row)} aria-label={`Enlarge photo of ${row.name}`}>
-            <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />
+            <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} interactive={false} />
           </button> : <CandidatePhoto src={row.thumbUrl} name={row.name} size={40} />}
           <span className="name">{row.name}<span className="judge-mobile-number">No. {row.number}</span></span>
         </div>

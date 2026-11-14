@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { pictureUrls } from '../lib/images';
 import { prisma } from '../lib/prisma';
@@ -48,6 +49,7 @@ reportsRouter.get('/categories/:id/report', admin, async (req, res) => {
     },
   });
   const entries = category.round.entries;
+  const eventJudges = await prisma.judge.findMany({ where: { eventId: category.round.eventId }, orderBy: { id: 'asc' }, select: { name: true } });
   const candidateIds = entries.map((entry) => entry.candidateId);
   const judgeIds = category.judges.map((judge) => judge.judgeId);
   const scores = await prisma.score.findMany({
@@ -66,16 +68,69 @@ reportsRouter.get('/categories/:id/report', admin, async (req, res) => {
   });
   const ranks = new Map(result.ranking.map((row) => [row.candidateId, row.rank]));
   const averages = new Map(result.scores.map((row) => [row.candidateId, row.score]));
+  const submitted = new Set(result.submittedJudgeIds);
+  const rawTotals = new Map<number, number>();
+  for (const score of scores) {
+    if (score.status === 'SUBMITTED' && submitted.has(score.judgeId)) {
+      rawTotals.set(score.candidateId, (rawTotals.get(score.candidateId) ?? 0) + Number(score.points));
+    }
+  }
+  const rawMaximum = category.criteria.reduce((sum, c) => sum + Number(c.maxPoints), 0) * judgeIds.length;
   res.json({
     category: { id: category.id, name: category.name },
     round: { id: category.round.id, name: category.round.name, status: category.round.status },
     groupValueId: groupValueId ?? null,
     judges: judgeIds.length,
+    judgeNames: eventJudges.map((judge) => judge.name),
+    totalJudges: eventJudges.length,
     judgesSubmitted: result.submittedJudgeIds.length,
     complete: result.complete,
-    rows: visible.map((entry) => ({ candidate: candidateDto(entry.candidate), score: averages.get(entry.candidateId) ?? null, rank: ranks.get(entry.candidateId) ?? null }))
+    rawMayDiffer: category.round.dropExtremes || category.criteria.some((c) => c.weight !== null) || new Set(category.criteria.map((c) => String(c.maxPoints))).size > 1,
+    rows: visible.map((entry) => ({ candidate: candidateDto(entry.candidate), score: averages.get(entry.candidateId) ?? null, rawTotal: rawTotals.get(entry.candidateId) ?? null, rawPercentage: rawTotals.has(entry.candidateId) && rawMaximum > 0 ? rawTotals.get(entry.candidateId)! / rawMaximum * 100 : null, rank: ranks.get(entry.candidateId) ?? null }))
       .sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER) || a.candidate.number - b.candidate.number),
   });
+});
+
+// An ad-hoc raw-points report, independent from advancement and normalized stage scores.
+reportsRouter.get('/events/:eventId/reports/combined-categories', admin, async (req, res) => {
+  const eventId = id.parse(req.params.eventId);
+  const query = z.object({ categoryIds: z.string().min(1), weights: z.string().optional(), groupValueId: z.coerce.number().int().positive().optional() }).parse(req.query);
+  const ids = query.categoryIds.split(',').map(Number);
+  const weightStrings = query.weights ? query.weights.split(',') : ids.map(() => '1');
+  const weights = weightStrings.map(Number);
+  if (ids.length > 50 || ids.some((n) => !Number.isSafeInteger(n) || n <= 0) || new Set(ids).size !== ids.length || weights.length !== ids.length || weights.some((n, i) => !/^\d+(\.\d{1,4})?$/.test(weightStrings[i]) || !Number.isFinite(n) || n <= 0 || n > 10000)) {
+    return res.status(400).json({ error: 'Choose distinct categories and a positive multiplier for each.' });
+  }
+  const categories = await prisma.category.findMany({
+    where: { id: { in: ids }, round: { eventId } },
+    include: { criteria: true, judges: true, round: { include: { event: { select: { testingMode: true } }, entries: { include: { candidate: { select: candidateSelect } } } } } },
+  });
+  if (categories.length !== ids.length) return res.status(400).json({ error: 'A selected category is not in this event.' });
+  if (categories.some((c) => c.round.kind !== 'SCORED')) return res.status(400).json({ error: 'Votes and scores are different units — no conversion rule exists.' });
+  if (categories.some((c) => c.round.status !== 'CLOSED')) return res.status(409).json({ error: 'Close every selected category’s stage before combining results.' });
+  if (categories.some((c) => c.criteria.length === 0 || c.judges.length === 0)) return res.status(409).json({ error: 'Every selected category needs criteria and assigned judges.' });
+  const ordered = ids.map((categoryId) => categories.find((c) => c.id === categoryId)!);
+  const scores = await prisma.score.findMany({
+    where: { criterionId: { in: ordered.flatMap((c) => c.criteria.map((cr) => cr.id)) }, status: 'SUBMITTED', ...(ordered[0].round.event.testingMode ? {} : { isTest: false }) },
+    select: { candidateId: true, judgeId: true, criterionId: true, points: true },
+  });
+  const cells = new Map(scores.map((s) => [`${s.candidateId}:${s.judgeId}:${s.criterionId}`, s.points]));
+  const candidates = new Map<number, CandidateRow>();
+  for (const c of ordered) for (const entry of c.round.entries) candidates.set(entry.candidateId, entry.candidate);
+  const maximum = ordered.reduce((sum, c, i) => sum.plus(c.criteria.reduce((s, cr) => s.plus(cr.maxPoints), new Prisma.Decimal(0)).times(c.judges.length).times(weightStrings[i])), new Prisma.Decimal(0));
+  const rows = [...candidates.values()].filter((c) => !query.groupValueId || c.groupValues.some((g) => g.groupValue.id === query.groupValueId)).map((candidate) => {
+    const values = ordered.map((c) => {
+      if (!c.round.entries.some((entry) => entry.candidateId === candidate.id)) return null;
+      const points = c.judges.flatMap((j) => c.criteria.map((cr) => cells.get(`${candidate.id}:${j.judgeId}:${cr.id}`)));
+      return points.some((p) => p === undefined) ? null : points.reduce<Prisma.Decimal>((sum, p) => sum.plus(p!), new Prisma.Decimal(0));
+    });
+    const total = values.some((value) => value === null) ? null : values.reduce<Prisma.Decimal>((sum, value, i) => sum.plus(value!.times(weightStrings[i])), new Prisma.Decimal(0));
+    return { candidate: candidateDto(candidate), values, total };
+  });
+  const ranked = rows.filter((r) => r.total !== null).sort((a, b) => b.total!.comparedTo(a.total!) || a.candidate.number - b.candidate.number);
+  const rankById = new Map<number, number>();
+  ranked.forEach((r, i) => rankById.set(r.candidate.id, i > 0 && r.total!.equals(ranked[i - 1].total!) ? rankById.get(ranked[i - 1].candidate.id)! : i + 1));
+  res.json({ categories: ordered.map((c, i) => ({ id: c.id, name: c.name, roundName: c.round.name, weight: weights[i] })), rows: [...ranked, ...rows.filter((r) => r.total === null).sort((a, b) => a.candidate.number - b.candidate.number)].map((r) => ({ candidate: r.candidate, values: r.values.map((v) => v === null ? null : Number(v)), total: r.total === null ? null : Number(r.total), percentage: r.total === null || maximum.isZero() ? null : Number(r.total.dividedBy(maximum).times(100)), rank: rankById.get(r.candidate.id) ?? null })) });
 });
 
 // Overall placing: how far each candidate got, then their rank in that round. The final round's top places get titles.
